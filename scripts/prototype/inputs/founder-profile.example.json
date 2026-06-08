@@ -1,0 +1,45 @@
+{
+  "_instructions": "Copy this file to founder-profile.json and fill in real details. The more specific you are, the better the voice match. Do not use vague descriptions like 'authentic and data-driven' — describe how they actually write.",
+
+  "name": "Sarah Chen",
+  "company": "Meridian Labs",
+  "industry": "B2B SaaS / developer tools",
+
+  "voiceDescription": "Sarah writes in short, direct sentences. Rarely more than two sentences per paragraph. She uses em dashes frequently and often starts sentences with 'The thing is' or 'Here's what I've learned'. She's technically precise but not jargony — she explains complex concepts with simple analogies. Dry humour appears occasionally, never forced. She does not use exclamation marks.",
+
+  "audienceDescription": "Technical founders and engineering leaders at Series A/B companies. They're building things, not managing things. They're skeptical of growth hackers and vanity metrics. They care about engineering excellence, team culture, and building something that matters. They've been burned by bad hires and bad tooling. A win for them is shipping quality product with a small team.",
+
+  "contentPillars": [
+    "Engineering leadership — how to build and retain great engineering teams",
+    "Developer tooling — what actually improves developer productivity vs what looks good in demos",
+    "Founder lessons — specific things learned from building Meridian that aren't in any startup playbook"
+  ],
+
+  "exampleContent": [
+    {
+      "format": "linkedin",
+      "text": "Most companies that say they care about code quality don't actually measure it.\n\nThey have a style guide. They do code reviews. They talk about tech debt in planning meetings.\n\nBut they don't have a number.\n\nThree years into Meridian I realized we'd been managing code quality by vibes. Felt bad, improve it. Felt good, ship it. No baseline, no trend, no accountability.\n\nThe thing is — you can't improve what you don't measure. And you can't measure it if you haven't decided what 'it' is.\n\nWe spent two weeks defining our quality metrics. Not the standard ones. Ours — specific to how we build and what we care about.\n\nNow we review them monthly. The conversations are different. Specific instead of vague. Actionable instead of philosophical.\n\nIf you're not measuring code quality with a number, you're not managing it."
+    },
+    {
+      "format": "newsletter",
+      "text": "Something I got wrong for the first two years: I thought better tools would make my team more productive.\n\nWe bought Notion. Then Linear. Then we tried five CI/CD pipelines. I kept looking for the tool that would unlock us.\n\nHere's what I've learned — tools don't make teams productive. Clarity does.\n\nThe engineers who ship the most aren't using the best tools. They're working on things with a clear definition of done, a clear owner, and a clear timeline.\n\nWhen we finally got that right, we stopped switching tools. The ones we had were fine.\n\nA boring observation, maybe. But it saved us eighteen months of tool-switching and onboarding overhead."
+    }
+  ],
+
+  "prohibitedPhrases": [
+    "game-changer",
+    "in today's world",
+    "let's dive in",
+    "at the end of the day",
+    "hustle",
+    "crushing it",
+    "unlock your potential",
+    "best-in-class",
+    "leverage",
+    "synergy"
+  ],
+
+  "contentBrief": "Write a LinkedIn post about the mistake most technical founders make when they start managing people for the first time.",
+
+  "targetFormat": "linkedin"
+}

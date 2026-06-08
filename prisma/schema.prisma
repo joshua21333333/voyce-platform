@@ -1,0 +1,344 @@
+// Voyce — Prisma Schema
+// Data layer: Postgres (source of truth) + R2 (content artifacts) + pgvector (semantic retrieval)
+// Migrate SQLite → Postgres before onboarding any real client.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector", schema: "public")]
+}
+
+// ─────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────
+
+enum SubscriptionPlan {
+  STARTER    // $99/month — 50 Content Actions
+  GROWTH     // $249/month — 150 Content Actions
+  PRO        // $499/month — 400 Content Actions
+  ENTERPRISE // Contact us — unlimited
+}
+
+enum ClientStatus {
+  PENDING    // awaiting payment confirmation
+  ACTIVE
+  SUSPENDED  // failed payment or manual hold
+  CANCELLED
+}
+
+enum ContextSectionType {
+  VOICE_PROFILE
+  AUDIENCE
+  CONTENT_PILLARS
+  BRAND_OPINIONS
+  COMPETITOR_INTEL
+  QUALITY_STANDARDS
+  PLATFORM_CONFIG
+  RECENT_ACTIVITY    // updated by biweekly Tally form (replaces Agent 10 Apify scraper)
+  PERFORMANCE_INSIGHTS // updated by Performance Analyst (Agent 07)
+  EXAMPLES           // curated approved content for few-shot voice matching
+}
+
+enum ContentStatus {
+  DRAFT
+  DELIVERED      // emailed to client
+  APPROVED
+  REVISION_REQUESTED
+  REVISING
+  PUBLISH_FAILED
+  PUBLISHED
+}
+
+enum ContentType {
+  LINKEDIN_POST
+  TWITTER_THREAD
+  INSTAGRAM_CAPTION
+  NEWSLETTER
+  LONG_FORM_ARTICLE
+  THOUGHT_LEADERSHIP_ESSAY
+  CASE_STUDY
+  EMAIL_SEQUENCE
+  VIDEO_SCRIPT
+  PODCAST_SHOWNOTES
+  YOUTUBE_DESCRIPTION
+  SEO_BRIEF
+  AD_COPY
+  COMPETITOR_AUDIT
+  TREND_REPORT
+  PERFORMANCE_REPORT
+}
+
+enum AgentType {
+  ORCHESTRATOR      // Agent 01 — absorbs Agent 09 routing logic
+  CONTENT_WRITER    // Agent 02 — absorbs Agent 06 repurposing capability
+  SEO_SPECIALIST    // Agent 03
+  AD_COPYWRITER     // Agent 04
+  RESEARCHER        // Agent 05 — absorbs Agent 08 AEO/GEO as a mode
+  PERFORMANCE_ANALYST // Agent 07
+  CONTENT_INTELLIGENCE // Agent 10 — replaced by biweekly form for early stage
+  VIDEO_PRODUCTION  // Agent 11 — Sprint 15+
+}
+
+enum QualityCheckType {
+  VOICE_MATCH
+  AUDIENCE_FIT
+  PILLAR_ALIGNMENT
+  STANDARDS_CHECK
+  BOUNDARIES_CHECK
+  EXAMPLES_MATCH
+  COHERENCE_CHECK
+  PLATFORM_FORMAT
+}
+
+enum AutononomyLevel {
+  LEVEL_1_MANUAL        // all drafts require explicit approval
+  LEVEL_2_CONFIDENCE    // auto-approve if confidence score >= threshold
+  LEVEL_3_AUTONOMOUS    // auto-publish — requires 10 consecutive approved drafts
+}
+
+// ─────────────────────────────────────────
+// Core Tables
+// ─────────────────────────────────────────
+
+model Client {
+  id               String         @id @default(cuid())
+  tallySubmissionId String?       @unique // idempotency key for Tally webhook
+  email            String         @unique
+  name             String
+  companyName      String?
+  status           ClientStatus   @default(PENDING)
+  plan             SubscriptionPlan @default(STARTER)
+  autonomyLevel    AutononomyLevel  @default(LEVEL_1_MANUAL)
+  consecutiveApprovals Int        @default(0) // tracks path to Level 3
+
+  // Stripe
+  stripeCustomerId    String?     @unique
+  stripeSubscriptionId String?    @unique
+  currentPeriodStart  DateTime?
+  currentPeriodEnd    DateTime?
+
+  // Content Actions metering
+  contentActionsLimit Int         @default(50)
+  contentActionsUsed  Int         @default(0)
+
+  // Integrations
+  bufferAccessToken   String?
+  bufferRefreshToken  String?
+  bufferTokenExpiresAt DateTime?
+  beehiivApiKey       String?     // encrypted at application layer
+  gaPropertyId        String?     // Google Analytics
+  notionAccessToken   String?
+  slackBotToken       String?
+
+  // Metadata
+  onboardingCompletedAt DateTime?
+  voiceCalibrationLockedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  contextSections  ClientContext[]
+  contentItems     ContentItem[]
+  agentRuns        AgentRun[]
+  approvalTokens   ApprovalToken[]
+  performanceEvents PerformanceEvent[]
+
+  @@index([status])
+  @@index([plan])
+}
+
+model ClientContext {
+  id          String             @id @default(cuid())
+  clientId    String
+  sectionType ContextSectionType
+  content     String             // assembled markdown text for LLM injection
+  version     Int                @default(1)
+  updatedAt   DateTime           @updatedAt
+  updatedBy   String             // agent type or 'human'
+
+  // pgvector embedding for semantic retrieval (populated async)
+  embedding   Unsupported("vector(1536)")?
+
+  client      Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, sectionType])
+  @@index([clientId])
+}
+
+model ContentItem {
+  id                   String       @id @default(cuid())
+  clientId             String
+  contentType          ContentType
+  status               ContentStatus @default(DRAFT)
+  wordCount            Int?
+  storageKey           String?      // R2/S3 object key for the actual content text
+  platformTarget       String?      // "linkedin", "newsletter", etc.
+  parentContentItemId  String?      // set when this is a repurposed piece
+
+  // Eval
+  evalPassed           Boolean?
+  confidenceScore      Float?       // aggregate of 8 quality check scores (0–100)
+
+  // Publishing
+  bufferJobId          String?
+  beehiivPostId        String?
+  publishedUrl         String?
+
+  // Timestamps
+  deliveredAt          DateTime?
+  approvedAt           DateTime?
+  publishedAt          DateTime?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  // Relations
+  client               Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  parent               ContentItem? @relation("Repurposed", fields: [parentContentItemId], references: [id])
+  repurposedItems      ContentItem[] @relation("Repurposed")
+  revisions            Revision[]
+  qualityChecks        QualityCheckResult[]
+  approvalTokens       ApprovalToken[]
+  performanceEvents    PerformanceEvent[]
+
+  @@index([clientId, status])
+  @@index([clientId, contentType])
+}
+
+model Revision {
+  id              String      @id @default(cuid())
+  contentItemId   String
+  revisionNumber  Int
+  feedbackText    String
+  revisedBy       String      // 'client' or agent type
+  previousStorageKey String?  // key to the previous version in R2
+  createdAt       DateTime    @default(now())
+
+  contentItem     ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@index([contentItemId])
+}
+
+model AgentRun {
+  id              String    @id @default(cuid())
+  clientId        String
+  agentType       AgentType
+  triggerJobId    String?   // Trigger.dev job ID
+  status          String    @default("queued") // queued | running | completed | failed | escalated
+  contextVersion  Int?      // MCF version snapshot used
+  tokenInputCount Int       @default(0)
+  tokenOutputCount Int      @default(0)
+  revisionCycles  Int       @default(0) // incremented on each eval fail → revise loop
+  errorMessage    String?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  qualityChecks   QualityCheckResult[]
+
+  @@index([clientId, agentType])
+  @@index([status])
+}
+
+model QualityCheckResult {
+  id            String           @id @default(cuid())
+  agentRunId    String
+  contentItemId String?
+  checkType     QualityCheckType
+  passed        Boolean
+  score         Float?           // 0–100
+  details       String?
+  createdAt     DateTime         @default(now())
+
+  agentRun      AgentRun         @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  contentItem   ContentItem?     @relation(fields: [contentItemId], references: [id])
+
+  @@index([agentRunId])
+}
+
+model ApprovalToken {
+  id            String      @id @default(cuid())
+  clientId      String
+  contentItemId String
+  token         String      @unique
+  action        String      // "approve" | "revise"
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  createdAt     DateTime    @default(now())
+
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([contentItemId])
+}
+
+model PerformanceEvent {
+  id            String   @id @default(cuid())
+  clientId      String
+  contentItemId String
+  platform      String
+  metricType    String   // "pageviews" | "time_on_page" | "scroll_depth" | "engagement_rate"
+  value         Float
+  recordedAt    DateTime @default(now())
+
+  client        Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id])
+
+  @@index([clientId, platform])
+  @@index([clientId, recordedAt])
+}
+
+// ─────────────────────────────────────────
+// Auth (NextAuth / Auth.js v5)
+// ─────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}

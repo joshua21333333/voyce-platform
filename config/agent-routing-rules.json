@@ -1,0 +1,142 @@
+{
+  "_comment": "Orchestrator reads this before every routing decision. Routing is deterministic — no LLM call required.",
+  "_consolidated": "11 agents reduced to 8. Agent 06 (Repurposer) → Content Writer mode:repurpose. Agent 08 (AEO/GEO) → Researcher mode:aeo. Agent 09 (Skills Interpreter) → Orchestrator initialization.",
+  "_sprintGating": "Agents marked sprint:3+ are not active until the specified sprint. Routing to an inactive agent returns an error.",
+
+  "contentProduction": {
+    "agent": "CONTENT_WRITER",
+    "mode": "original",
+    "sprint": 1,
+    "contentTypes": [
+      "LINKEDIN_POST",
+      "TWITTER_THREAD",
+      "INSTAGRAM_CAPTION",
+      "NEWSLETTER",
+      "LONG_FORM_ARTICLE",
+      "THOUGHT_LEADERSHIP_ESSAY",
+      "CASE_STUDY",
+      "EMAIL_SEQUENCE",
+      "VIDEO_SCRIPT",
+      "PODCAST_SHOWNOTES",
+      "YOUTUBE_DESCRIPTION"
+    ]
+  },
+
+  "contentRepurposing": {
+    "agent": "CONTENT_WRITER",
+    "mode": "repurpose",
+    "sprint": 4,
+    "_note": "Repurposing requires an approved source content_item_id in the job payload. Consolidated from original Agent 06.",
+    "transformations": [
+      "article_to_linkedin",
+      "article_to_thread",
+      "podcast_to_newsletter",
+      "webinar_to_blog",
+      "thread_to_longform",
+      "report_to_carousel",
+      "video_to_article"
+    ]
+  },
+
+  "seoWork": {
+    "agent": "SEO_SPECIALIST",
+    "mode": "standard",
+    "sprint": 3,
+    "taskTypes": [
+      "SEO_BRIEF",
+      "keyword_research",
+      "topic_cluster",
+      "on_page_optimization",
+      "programmatic_seo_plan"
+    ]
+  },
+
+  "aeoGeoWork": {
+    "agent": "SEO_SPECIALIST",
+    "mode": "aeo",
+    "sprint": 3,
+    "_note": "AEO/GEO is a mode within SEO Specialist. Consolidated from original Agent 08.",
+    "taskTypes": [
+      "aeo_content_brief",
+      "entity_building_strategy",
+      "ai_citation_audit",
+      "knowledge_graph_positioning"
+    ]
+  },
+
+  "adCopyWork": {
+    "agent": "AD_COPYWRITER",
+    "mode": "standard",
+    "sprint": 4,
+    "taskTypes": [
+      "AD_COPY",
+      "ab_test_variants",
+      "creative_brief",
+      "campaign_variants"
+    ]
+  },
+
+  "researchWork": {
+    "agent": "RESEARCHER",
+    "mode": "standard",
+    "sprint": 5,
+    "taskTypes": [
+      "COMPETITOR_AUDIT",
+      "TREND_REPORT",
+      "audience_persona",
+      "market_intelligence"
+    ]
+  },
+
+  "aeoResearch": {
+    "agent": "RESEARCHER",
+    "mode": "aeo",
+    "sprint": 5,
+    "_note": "AEO research mode available on Researcher as well as SEO Specialist depending on task type.",
+    "taskTypes": [
+      "aeo_research",
+      "entity_gap_analysis",
+      "citation_opportunity_audit"
+    ]
+  },
+
+  "performanceReporting": {
+    "agent": "PERFORMANCE_ANALYST",
+    "mode": "standard",
+    "sprint": 5,
+    "taskTypes": [
+      "PERFORMANCE_REPORT",
+      "monthly_report",
+      "pillar_analysis",
+      "format_analysis"
+    ]
+  },
+
+  "contentIntelligence": {
+    "agent": "CONTENT_INTELLIGENCE",
+    "mode": "biweekly_form",
+    "sprint": 1,
+    "_note": "For Sprints 1-5: biweekly Tally form, not Apify scraping. Apify mode activates Sprint 6+ or Enterprise tier.",
+    "taskTypes": [
+      "activity_update",
+      "contradiction_check"
+    ]
+  },
+
+  "videoProduction": {
+    "agent": "VIDEO_PRODUCTION",
+    "mode": "standard",
+    "sprint": 15,
+    "taskTypes": [
+      "video_render",
+      "video_repurpose"
+    ]
+  },
+
+  "evalChecks": {
+    "parallel": ["VOICE_MATCH", "AUDIENCE_FIT", "PILLAR_ALIGNMENT"],
+    "sequential": ["STANDARDS_CHECK", "BOUNDARIES_CHECK", "EXAMPLES_MATCH", "COHERENCE_CHECK", "PLATFORM_FORMAT"],
+    "maxRevisionCycles": 3,
+    "escalateAfterCycles": true
+  }
+}

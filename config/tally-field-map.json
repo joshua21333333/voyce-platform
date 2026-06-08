@@ -1,0 +1,152 @@
+{
+  "_comment": "Maps Tally form field IDs to MCF section types and database columns.",
+  "_warning": "Tally returns field IDs (not labels) in webhook payloads. If the Tally form is edited, update this file — do not hardcode field IDs in application code.",
+  "_idempotency": "The Tally submission ID (event.data.submissionId) is stored as clients.tallySubmissionId with a unique constraint. Duplicate webhooks are silently ignored.",
+
+  "onboarding": {
+    "_formId": "REPLACE_WITH_TALLY_FORM_ID",
+    "_description": "Main onboarding form. Submission triggers client record creation and MCF build.",
+    "fields": {
+      "REPLACE_WITH_NAME_FIELD_ID": {
+        "dbColumn": "clients.name",
+        "mcfSection": null,
+        "required": true
+      },
+      "REPLACE_WITH_EMAIL_FIELD_ID": {
+        "dbColumn": "clients.email",
+        "mcfSection": null,
+        "required": true
+      },
+      "REPLACE_WITH_COMPANY_FIELD_ID": {
+        "dbColumn": "clients.companyName",
+        "mcfSection": "VOICE_PROFILE",
+        "mcfKey": "company",
+        "required": true
+      },
+      "REPLACE_WITH_VOICE_Q1_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "VOICE_PROFILE",
+        "mcfKey": "toneDescription",
+        "required": true,
+        "hint": "Three words that describe your tone"
+      },
+      "REPLACE_WITH_VOICE_Q2_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "VOICE_PROFILE",
+        "mcfKey": "writingStyle",
+        "required": true,
+        "hint": "How do you talk when you're most yourself?"
+      },
+      "REPLACE_WITH_AUDIENCE_Q1_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "AUDIENCE",
+        "mcfKey": "primaryCustomer",
+        "required": true,
+        "hint": "Who is your primary customer?"
+      },
+      "REPLACE_WITH_AUDIENCE_Q2_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "AUDIENCE",
+        "mcfKey": "biggestFrustration",
+        "required": true,
+        "hint": "Their biggest daily frustration"
+      },
+      "REPLACE_WITH_PILLARS_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "CONTENT_PILLARS",
+        "mcfKey": "pillars",
+        "required": true,
+        "hint": "Your 3-4 content pillars"
+      },
+      "REPLACE_WITH_OPINIONS_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "BRAND_OPINIONS",
+        "mcfKey": "opinions",
+        "required": true,
+        "hint": "Opinions you hold that most people in your space push back on"
+      },
+      "REPLACE_WITH_NEVER_SAY_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "VOICE_PROFILE",
+        "mcfKey": "prohibitedPhrases",
+        "required": true,
+        "hint": "Phrases you would never use"
+      },
+      "REPLACE_WITH_SAMPLE_1_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "EXAMPLES",
+        "mcfKey": "sample1",
+        "required": true,
+        "hint": "Writing sample 1 (LinkedIn post, newsletter, blog — 200+ words)"
+      },
+      "REPLACE_WITH_SAMPLE_2_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "EXAMPLES",
+        "mcfKey": "sample2",
+        "required": false,
+        "hint": "Writing sample 2"
+      },
+      "REPLACE_WITH_SAMPLE_3_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "EXAMPLES",
+        "mcfKey": "sample3",
+        "required": false,
+        "hint": "Writing sample 3"
+      },
+      "REPLACE_WITH_PLATFORM_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "PLATFORM_CONFIG",
+        "mcfKey": "activePlatforms",
+        "required": true,
+        "hint": "Which platforms do you publish on?"
+      },
+      "REPLACE_WITH_CADENCE_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "PLATFORM_CONFIG",
+        "mcfKey": "publishingCadence",
+        "required": true,
+        "hint": "How often do you want to publish?"
+      },
+      "REPLACE_WITH_QUALITY_FIELD_ID": {
+        "dbColumn": null,
+        "mcfSection": "QUALITY_STANDARDS",
+        "mcfKey": "qualityFloor",
+        "required": false,
+        "hint": "What does excellent content look like to you?"
+      }
+    }
+  },
+
+  "activityUpdate": {
+    "_formId": "REPLACE_WITH_ACTIVITY_UPDATE_FORM_ID",
+    "_description": "Biweekly activity update form. Replaces Agent 10 Apify scraper for Sprints 1-5.",
+    "_schedule": "Every 14 days per active client. Triggered by Trigger.dev scheduled task.",
+    "fields": {
+      "REPLACE_WITH_ACTIVITY_Q1_FIELD_ID": {
+        "mcfSection": "RECENT_ACTIVITY",
+        "mcfKey": "recentPublishing",
+        "hint": "What have you been writing or saying publicly this week?"
+      },
+      "REPLACE_WITH_ACTIVITY_Q2_FIELD_ID": {
+        "mcfSection": "RECENT_ACTIVITY",
+        "mcfKey": "recentEngagements",
+        "hint": "What topics or conversations have you been engaging with?"
+      },
+      "REPLACE_WITH_ACTIVITY_Q3_FIELD_ID": {
+        "mcfSection": "RECENT_ACTIVITY",
+        "mcfKey": "opinionsToAmplify",
+        "hint": "Any opinions you've shared recently that you want the content to build on?"
+      },
+      "REPLACE_WITH_ACTIVITY_Q4_FIELD_ID": {
+        "mcfSection": "RECENT_ACTIVITY",
+        "mcfKey": "avoidTopics",
+        "hint": "Anything you've published independently that we should avoid repeating?"
+      },
+      "REPLACE_WITH_ACTIVITY_Q5_FIELD_ID": {
+        "mcfSection": "RECENT_ACTIVITY",
+        "mcfKey": "offLimitsTopics",
+        "hint": "Any topics that are off the table for the next two weeks?"
+      }
+    }
+  }
+}

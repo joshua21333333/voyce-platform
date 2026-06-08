@@ -383,7 +383,7 @@ Log `token_input_count` and `token_output_count` on every `agent_run` from day o
 Before writing any application code, the following decisions must be documented:
 
 - [ ] ICP defined: solo founder or growth-stage startup?
-- [ ] Starter tier pricing reviewed in light of ICP decision
+- [x] Starter tier pricing confirmed: $99/$249/$499/Enterprise (revised from $40/$80/$199)
 - [ ] Content Actions definition documented: does a production run of 3 pieces consume 3 actions or 1?
 - [ ] Orchestrator failure mode designed: retry depth, escalation path, client-facing error
 - [ ] Per-action token budget set: max Claude calls, max tokens per call

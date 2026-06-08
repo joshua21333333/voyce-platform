@@ -20,7 +20,7 @@ The current architecture routes every agent task, every quality check, every wor
 The Master Context File is read by agents and written by Agent 10, with insights fed back by Agent 07, all potentially during the same production run. Flat markdown files have no locking, no transactions, and no conflict resolution. The spec mixes SQLite-via-Prisma and file-based storage as if they are complementary. They are not — one must win as the authoritative source of truth, and it should not be a markdown file.
 
 **4. Is the Starter tier economically viable?**
-At $40/month with estimated COGS of $11–13/month per client today, the gross margin looks acceptable. It is not. The 8-check eval loop can generate 6–10 Claude API calls per Content Action. The Master Context File, if loaded in full for every call, compounds input token costs significantly. Without prompt caching and strict per-action token budgets, the Starter tier becomes a loss leader that the company discovers accidentally, not by design.
+At $99/month (revised from the original $40) with COGS of $11–13/month per client, gross margin is approximately 87% — defensible as long as prompt caching is applied to stable MCF sections and revision loops are capped at 3 cycles. The original $40 pricing would have produced negative or breakeven margin after Claude API eval-loop costs. The current $99/$249/$499 tier structure was locked after architecture review.
 
 **5. Which ICP is Voyce actually building for?**
 The architecture is sized for a growth-stage startup with a marketing lead and clear content benchmarks. The pricing is positioned for a bootstrapped solo founder who cannot afford $200/month for a tool they are still evaluating. These are different products with different onboarding flows, different retention levers, and different sales conversations. The current spec serves both profiles with the same system and will produce inconsistent results across all customer conversations until this is resolved.
@@ -172,17 +172,23 @@ The current positioning spans three distinct customer profiles: the bootstrapped
 
 The architecture is built for Profile B (growth-stage startup). The pricing is aimed at Profile A (solo founder). This mismatch will produce inconsistent sales conversations, high early churn from founders who expected a ghostwriter and received a content system, and premature feature requests from growth-stage buyers who want performance dashboards before the voice model is calibrated.
 
-Pick one ICP for Sprint 1. The evidence from the architecture strongly suggests Profile B is the intended customer. If that is the ICP, the pricing must reflect it. $40/month for this system is not a sustainable entry point for the customer segment that will actually value the full architecture. Consider raising the floor to $99/month with a 14-day trial, or position Starter explicitly as a calibration-only tier that converts to Growth on the first successful publish cycle.
+Pick one ICP for Sprint 1. The evidence from the architecture strongly suggests Profile B is the intended customer — the architecture (MCF sophistication, SEO infrastructure, performance feedback loop) is built for a buyer with content strategy maturity. The revised pricing ($99 Starter) reflects this: it's still impulse-buy territory for a B2B founder, but it correctly positions Voyce as a content system rather than a cheap writing tool. Consider positioning Starter explicitly as a 60-day calibration tier that graduates to Growth on the first successful publish cycle.
 
-### Unit Economics: The Eval Loop is a Margin Risk
+### Unit Economics: Revised Pricing Locks in Margin
 
-Estimated Starter tier COGS at $40/month:
+Pricing tiers (revised 2026-06-08):
+- **Starter — $99/month** — 50 Content Actions — solo founders, early operators
+- **Growth — $249/month** — 150 Content Actions — scaling founders, small teams
+- **Pro — $499/month** — 400 Content Actions — growth-stage companies
+- **Enterprise — Contact us** — unlimited, multiple brand profiles
+
+Estimated Starter tier COGS at $99/month:
 - Claude API: ~$6.30/month (50 actions × 8 calls × 4,000-token context)
 - Infrastructure, Semrush amortized, Buffer, hosting: ~$4–7/month
 - Total COGS: ~$11–13/month
-- Gross margin: ~67–72%
+- Gross margin: **~87%** — defensible as long as prompt caching and a 3-cycle eval loop cap are in place
 
-This margin is defensible **only** with prompt caching on stable context sections and a hard cap on revision loops. Without prompt caching, input token costs roughly double. Without a revision loop cap, a single malformed client context can generate 20+ API calls for one Content Action, pushing per-action cost above $0.50 and gross margin into the 50% range. Implement both controls in Sprint 1.
+The original $40/$80/$199 pricing was flagged as margin-destroying. At $40, Claude API alone could consume 30–40% of revenue per client depending on usage. The revised pricing makes $249 Growth an easy B2B justification against a $3,000 agency retainer, and $499 Pro the obvious choice for anyone serious. Implement prompt caching and the revision loop cap in Sprint 1 regardless.
 
 ### The Autonomy Trust Curve Must Be a Named Product Feature
 
