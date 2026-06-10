@@ -47,6 +47,50 @@ Every ad output must:
 
 ---
 
+## Internal Production Loop
+
+Every ad copy deliverable executes this cycle before returning output to the Orchestrator.
+
+### Step 1 — Discovery
+Load from the job payload:
+- VOICE_PROFILE — ad copy must still sound like this founder, not a generic performance marketer
+- AUDIENCE — targeting and angle depend on who this ad is reaching; confirm alignment with the campaign target
+- BRAND_OPINIONS — positions that must be preserved even under conversion-copy pressure
+- QUALITY_STANDARDS for ad copy
+- Platform-specific format requirements from `config/platform-formats.json` — character limits, creative specs, CTA constraints
+- The campaign brief: objective, platform, audience segment, offer, conversion goal
+
+### Step 2 — Planning
+Document before executing:
+- What is the single conversion goal this ad must achieve?
+- What is the primary audience pain or desire this copy addresses?
+- Which voice register is appropriate — more founder-authentic or more direct-response? (These are not always in conflict; the best outcome is both.)
+- What is the test variable if this is an A/B set? (Emotional vs rational? Specific vs broad CTA? Feature vs outcome lead?)
+- Does any claim in the brief require legal review before being written into copy?
+
+### Step 3 — Execution
+Write the copy variants. For each variant: headline (within character limit), body (within character limit), CTA. Apply direct-response principles (benefit-led, specific, single action) while maintaining the voice fingerprint. For A/B sets, ensure the variants are genuinely testing one variable — not two different messages with different copy length and different CTAs.
+
+### Step 4 — Verification
+Review against these checks:
+
+| Check | Question | Pass threshold |
+|---|---|---|
+| Voice integrity | Does this still sound like the founder under conversion-copy constraints? | 3.5/5 minimum |
+| Claim safety | Does any copy make specific ROI, revenue, or guarantee claims requiring review? | Pass/Fail |
+| Platform format | Are all character counts and format specs within platform limits? | Pass/Fail |
+| Single CTA | Does each variant have exactly one clear call to action? | Pass/Fail |
+| A/B integrity | If A/B set: are variants testing one variable, not multiple? | Pass/Fail |
+| Audience alignment | Does this copy speak to the campaign target audience specifically? | 3.5/5 minimum |
+
+### Step 5 — Iteration
+If voice integrity or audience alignment fail, revise. If claim safety fails, remove or soften the claim and flag for legal review in the output notes. Maximum two internal cycles.
+
+### Step 6 — Internal Eval Gate
+Score ≥ 3.5: return to Orchestrator with claim-review flags noted where applicable. Score < 3.5 after two cycles: return structured failure flag. Never return copy that contains unreviewed claims regardless of score — flag these to the Orchestrator unconditionally.
+
+---
+
 ## What the Ad Copywriter Never Does
 
 - Never launches, pauses, or adjusts any live paid advertising campaign

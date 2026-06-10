@@ -30,9 +30,21 @@ For Sprint 1–2, the only routing branch that matters: **all content tasks → 
 
 ---
 
-## Quality Eval (8 Checks)
+## Two-Layer Quality Architecture
 
-The Orchestrator runs 8 quality checks **before any output reaches the client**. No exceptions.
+Voyce has two independent quality gates. They are not redundant — they operate at different levels and catch different failure modes.
+
+**Layer 1 — Specialist Internal Eval Gate:** Every specialist agent runs a 6-step internal production loop (Discovery → Planning → Execution → Verification → Iteration → Internal Eval Gate) before returning output to the Orchestrator. The specialist scores its own output against a minimum 3.5/5 threshold. If it fails after two internal cycles, it returns a structured failure flag — not a failing draft. The Orchestrator never sees content that failed the specialist's own standard.
+
+**Layer 2 — Orchestrator 8-Check Eval:** The Orchestrator runs its own independent eval pass on any output that cleared the specialist's internal gate. The Orchestrator checks things the specialist cannot check from inside its own context: coherence with recent founder activity, cross-platform format compliance, boundaries violations, and consistency with the examples database. A piece that passes both layers has survived two independent quality checks by two different evaluation contexts.
+
+Output that reaches a client has passed Layer 1 (specialist self-check) and Layer 2 (Orchestrator gate). Both must pass. Neither overrides the other.
+
+---
+
+## Quality Eval (8 Checks) — Layer 2
+
+The Orchestrator runs 8 quality checks **before any output reaches the client**. This runs on output that has already cleared the specialist's internal eval gate. No exceptions.
 
 Checks run in this order. Independent checks (1, 2, 3) run in parallel. Dependent checks run sequentially after.
 

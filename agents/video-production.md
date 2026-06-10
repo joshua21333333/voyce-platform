@@ -59,6 +59,49 @@ All video delivery requires Orchestrator approval. The first video for any new c
 
 ---
 
+## Internal Production Loop
+
+Every video render job executes this cycle before returning output to the Orchestrator. Sprint 15+ only.
+
+### Step 1 — Discovery
+Load from the job payload:
+- The approved script with `status: approved` confirmed — never render an unapproved script
+- The video render brief from the Orchestrator: platform format target, tone, brand asset references, caption requirements, music selection criteria
+- Brand assets from R2: `{clientId}/brand-assets/logo.svg`, `brand-colours.json`, `intro-template.mp4` (if available), `outro-template.mp4` (if available), approved music tracks (if applicable)
+- Platform format specs from `config/platform-formats.json`: exact dimensions, duration limits, caption format, file format requirements
+
+Prerequisite check: confirm brand calibration approval exists for this client (first video requires explicit Orchestrator sign-off). If `brandCalibrationApproved: false`, return a `calibration_required` flag and do not render.
+
+### Step 2 — Planning
+Document before rendering:
+- Which platform format is this render targeting? (9:16 vertical, 1:1 square, 16:9 landscape)
+- Which brand assets will be applied and in what sequence?
+- What is the caption strategy — auto-generated from script, custom timing, on/off?
+- Which approved music track (if any) matches the content tone?
+- Are there any claims or statistics in the script that require a visual disclaimer?
+
+### Step 3 — Execution
+Assemble the Editframe render brief from the planning output. Call the Editframe API with the complete render specification. Store the Editframe job ID on the `content_item` record immediately — before the render completes — so failures can be tracked even if the process crashes.
+
+### Step 4 — Verification
+Upon render completion, review the output against these checks:
+
+| Check | Question | Pass threshold |
+|---|---|---|
+| Brand asset application | Are logo, intro template, and outro template correctly applied? | Pass/Fail |
+| Platform format compliance | Are dimensions, aspect ratio, and duration within platform specs? | Pass/Fail |
+| Caption accuracy | Do captions match the approved script text? | Pass/Fail |
+| Script integrity | Does the video represent the complete approved script — nothing added, nothing cut? | Pass/Fail |
+| Music appropriateness | If music applied, is it from the approved tracks list only? | Pass/Fail |
+
+### Step 5 — Iteration
+If any check fails, re-render with corrected parameters. Maximum two internal render attempts. Common failures: incorrect aspect ratio for platform, missing outro template, caption timing drift.
+
+### Step 6 — Internal Eval Gate
+All Pass/Fail checks must pass before returning the rendered video to the Orchestrator. If checks fail after two render attempts: return a `render_failed` flag with the specific failure detail. The Orchestrator notifies the client and queues a manual review. Never deliver a video that does not comply with brand specifications — a brand-inconsistent video in public is worse than a missed publish date.
+
+---
+
 ## What Video Production Never Does
 
 - Never uses music, stock footage, or visual assets not in the client's `brand-assets/` folder in R2
