@@ -1,0 +1,46 @@
+{
+  "name": "Tyler Denk",
+  "company": "beehiiv",
+  "industry": "Newsletter publishing / B2B SaaS",
+
+  "voiceDescription": "Casual and direct. Conversational in the real sense — talks like he's at a dinner table with people he respects, not performing professionalism. Uses contractions everywhere. Self-deprecating humour delivered completely dry — makes the joke and moves on. Mixes specific real-world details (named investors, exact dollar figures, specific dates, the Ford Mustang) with tactical conclusions. Short paragraphs — rarely more than three sentences. Heavy use of parentheticals for asides. Doesn't hedge or soften takes. Honest about failures and mistakes in a way that makes the tactical lessons land harder. Ends strong — punchy, concrete, no trailing summaries.",
+
+  "audienceDescription": "Founders and operators who are either building something or thinking about building something. They respect hustle but are allergic to startup theater. They want the real story, not the polished LinkedIn version. They're smart enough to skip the basics — Tyler doesn't explain what a seed round is. A win for them is one specific, counter-intuitive thing they didn't already know.",
+
+  "contentPillars": [
+    "Fundraising — the real mechanics, not the mythology",
+    "Building beehiiv — what actually happened, not the retrospective highlight reel",
+    "Growth — newsletter growth, distribution, user community as a competitive advantage",
+    "Founder reality — the unglamorous parts most people skip over"
+  ],
+
+  "exampleContent": [
+    {
+      "format": "newsletter",
+      "text": "In the 48 hours that followed our Series B fundraise announcement: we generated millions of free impressions, thousands of new signups... and even hundreds of additional investors.\n\nGranted, I don't really think fundraising in of itself is worth celebrating... but as a startup you should always be looking for opportunities to expand your reach.\n\nI'd argue we generated more buzz around our fundraise than 99% of other startups have for theirs.\n\nAnd I'm going to explain exactly how we did it.\n\nA few members of the Wefunder team had persistently been selling me on doing a community round with them for well over a year.\n\nWefunder is a crowdfunding platform that allows everyday people (i.e. not professional investors) invest in startups.\n\nAlthough I had always loved the idea, it didn't make sense for us to randomly raise money from our users. I was pretty opinionated that a community round performed much better and was operationally easier when positioned alongside a traditional priced round.\n\nAt the time, we didn't have plans to raise additional capital, so I told their team week after week that we weren't interested.\n\nThen in a final attempt to win our business, they offered to purchase us a billboard in Times Square. The purpose of the promotion was to show that our users were super passionate about beehiiv and desperate to invest into the company.\n\nUnbeknownst to the them, I had already been debating raising our Series B internally. This billboard would play directly into the vision I had for the announcement - building a larger narrative and generating some intrigue a few weeks in advance.\n\nPlus, why say no to a free billboard in Times Square?"
+    },
+    {
+      "format": "newsletter",
+      "text": "I've raised nearly $50M for beehiiv over the span of 4 different rounds. Each round has a totally different story to tell.\n\nTo set the record straight - I don't believe raising money in of itself is an accomplishment, it's simply a means to an end. Just look at Bench Accounting who raised over $100M and abruptly shut down over the holidays (before Employer.com swept in to acquire them at the last minute). That saga deserves its own post, but the point remains: raising money doesn't really mean shit.\n\nIf you have the means to bootstrap your startup, then good on ya.\n\nI spent nearly a year moonlighting the project before we finally had a working prototype in the summer of 2021. Despite that, we still had full-time jobs and were only spending a fraction of our time building beehiiv on the sidelines.\n\nI rented a summer house in Venice that July with a group of my best friends. That detail is fairly irrelevant outside of the fact that it lines up perfectly with raising our seed round.\n\nI arrived in LA that month with a simple goal: raise enough money to quit our jobs and pursue beehiiv full-time.\n\nI would spend all day in the living room at this makeshift standing desk I put together (a stack of books) and pitch the opportunity to investor after investor. I'm not sure who had it worse:\n\nMe, being rejected by more than 40 investors.\nMy friends, who had to listen to me repeat the same pitch more than 40 times.\n\nRaising a seed round is a really humbling experience, but you also can't help but acknowledge the absurdity of it all. We had no product, no revenue, and no customers... yet I was caught dumbfounded with each rejection. 'What do you mean you don't want to wire us millions of dollars?'\n\nI haven't experienced that many rejections since spring break in college. That last sentence was a lie, I crushed it that spring break.\n\nKey Takeaway: Capital is commoditized. I'd prefer to spend one week raising funds from lesser-known investors than waste ten weeks chasing capital from a 'top-tier' fund (probably with worse terms). Raising money isn't the job, building a product or service that solves customers' problems is. Take the path of least resistance and keep building."
+    }
+  ],
+
+  "prohibitedPhrases": [
+    "in today's fast-paced world",
+    "let's dive in",
+    "thought leader",
+    "leverage synergies",
+    "at the end of the day",
+    "it's important to note",
+    "best-in-class",
+    "actionable insights",
+    "game-changer",
+    "touch base",
+    "circle back",
+    "move the needle"
+  ],
+
+  "contentBrief": "Write a LinkedIn post about why most founders treat the decision to raise a new round wrong — specifically the mistake of raising from a position of need rather than position of strength.",
+
+  "targetFormat": "linkedin"
+}

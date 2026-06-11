@@ -46,10 +46,12 @@ enum ContextSectionType {
 
 enum ContentStatus {
   DRAFT
-  DELIVERED      // emailed to client
+  DELIVERED           // emailed to client
   APPROVED
   REVISION_REQUESTED
   REVISING
+  HOLD_RECOMMENDED    // Orchestrator flagged — awaiting client decision
+  ON_HOLD             // client confirmed hold
   PUBLISH_FAILED
   PUBLISHED
 }
@@ -184,6 +186,12 @@ model ContentItem {
   evalPassed           Boolean?
   confidenceScore      Float?       // aggregate of 8 quality check scores (0–100)
 
+  // Short preview stored in DB so list views don't need R2 calls
+  contentPreview       String?
+
+  // Hold reason surfaced by Orchestrator coherence/boundaries checks
+  holdReason           String?
+
   // Publishing
   bufferJobId          String?
   beehiivPostId        String?
@@ -233,6 +241,7 @@ model AgentRun {
   tokenInputCount Int       @default(0)
   tokenOutputCount Int      @default(0)
   revisionCycles  Int       @default(0) // incremented on each eval fail → revise loop
+  discoveryMode   Boolean   @default(false)
   errorMessage    String?
   startedAt       DateTime?
   completedAt     DateTime?
