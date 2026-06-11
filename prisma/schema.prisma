@@ -1,16 +1,18 @@
 // Voyce — Prisma Schema
-// Data layer: Postgres (source of truth) + R2 (content artifacts) + pgvector (semantic retrieval)
-// Migrate SQLite → Postgres before onboarding any real client.
+// ─────────────────────────────────────────────────────────────────────────────
+// PRODUCTION: set provider = "postgresql" and restore extensions block.
+// DEV SANDBOX: provider = "sqlite" with DATABASE_URL = "file:./dev.db"
+//              pgvector extension and embedding column removed for SQLite compat.
+//              Switch to Postgres (Supabase/Neon) before onboarding real clients.
+// ─────────────────────────────────────────────────────────────────────────────
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
-  extensions = [pgvector(map: "vector", schema: "public")]
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 // ─────────────────────────────────────────
@@ -163,9 +165,7 @@ model ClientContext {
   updatedAt   DateTime           @updatedAt
   updatedBy   String             // agent type or 'human'
 
-  // pgvector embedding for semantic retrieval (populated async)
-  embedding   Unsupported("vector(1536)")?
-
+  // pgvector embedding: add back when switching to Postgres (Unsupported("vector(1536)"))
   client      Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, sectionType])
