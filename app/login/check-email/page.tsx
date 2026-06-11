@@ -1,4 +1,4 @@
-import { VoyceNib } from '@/components/VoyceLogo'
+import { VoyceLogoPng } from '@/components/VoyceLogo'
 
 export default function CheckEmailPage() {
   return (
@@ -8,7 +8,7 @@ export default function CheckEmailPage() {
     >
       <div style={{ textAlign: 'center', maxWidth: '380px' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
-          <VoyceNib size={32} color="#4b9eff" />
+          <VoyceLogoPng size={40} />
         </div>
         <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '12px', color: '#f0f2f8' }}>
           Check your email

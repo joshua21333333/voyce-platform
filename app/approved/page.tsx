@@ -1,12 +1,12 @@
 import Link from 'next/link'
-import { VoyceNib } from '@/components/VoyceLogo'
+import { VoyceLogoPng } from '@/components/VoyceLogo'
 
 export default function ApprovedPage() {
   return (
     <div className="bg-grid" style={{ minHeight: '100vh', backgroundColor: '#0a0b0f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
       <div style={{ maxWidth: '380px' }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '28px' }}>
-          <VoyceNib size={28} color="#4b9eff" />
+          <VoyceLogoPng size={36} />
         </div>
         <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: '20px' }}>
           ✓

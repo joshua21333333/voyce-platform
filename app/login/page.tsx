@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { auth, signIn } from '@/auth'
-import { VoyceNib } from '@/components/VoyceLogo'
+import { VoyceLogoPng } from '@/components/VoyceLogo'
 
 const hasResend = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'NEEDS_EXTERNAL_SETUP')
 const isDev = process.env.NODE_ENV === 'development'
@@ -20,7 +20,7 @@ export default async function LoginPage({
 
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'center', marginBottom: '48px' }}>
-          <VoyceNib size={28} color="#4b9eff" />
+          <VoyceLogoPng size={36} />
           <span style={{ fontSize: '22px', fontWeight: 600, letterSpacing: '0.04em', color: '#f0f2f8' }}>
             Voyce
           </span>

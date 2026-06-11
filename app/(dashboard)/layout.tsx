@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import Link from 'next/link'
-import { VoyceNib } from '@/components/VoyceLogo'
+import { VoyceLogoPng } from '@/components/VoyceLogo'
 
 const navLinks = [
   { href: '/drafts',      label: 'Drafts' },
@@ -35,8 +35,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       >
         {/* Left: logo + nav */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
-          <Link href="/drafts" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
-            <VoyceNib size={20} color="#4b9eff" />
+          <Link href="/drafts" style={{ display: 'flex', alignItems: 'center', gap: '9px', textDecoration: 'none' }}>
+            <VoyceLogoPng size={26} />
             <span style={{ fontSize: '16px', fontWeight: 600, letterSpacing: '0.04em', color: '#f0f2f8' }}>
               Voyce
             </span>
