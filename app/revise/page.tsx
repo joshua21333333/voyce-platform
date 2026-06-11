@@ -18,63 +18,41 @@ function ReviseForm() {
       body: JSON.stringify({ contentItemId, notes }),
     })
     setSubmitted(true)
-    setTimeout(() => router.push('/drafts'), 2000)
+    setTimeout(() => router.push('/drafts'), 2500)
   }
 
   if (submitted) {
     return (
-      <p style={{ color: '#2E7D32', fontSize: '14px' }}>
-        ✓ Revision request sent. We'll have an updated draft to you within 24 hours.
+      <p style={{ color: '#34d399', fontSize: '14px', textAlign: 'center' }}>
+        ✓ Revision request sent. Revised draft arrives within 24 hours.
       </p>
     )
   }
 
   return (
     <form onSubmit={handleSubmit}>
-      <label
-        style={{
-          display: 'block',
-          fontSize: '11px',
-          color: '#888',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          marginBottom: '8px',
-        }}
-      >
+      <label style={{ display: 'block', fontSize: '11px', color: '#5a6278', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '8px' }}>
         What needs to change?
       </label>
       <textarea
         value={notes}
-        onChange={(e) => setNotes(e.target.value)}
+        onChange={e => setNotes(e.target.value)}
         required
-        rows={6}
-        placeholder="Be specific — 'the opener is too formal' or 'the third paragraph misrepresents my position on X' is more useful than 'it doesn't sound like me'."
+        rows={5}
+        placeholder={`Be specific — "the opener is too formal" or "the third paragraph misrepresents my position on X" is more useful than "it doesn't sound like me".`}
         style={{
-          width: '100%',
-          padding: '12px 16px',
-          border: '1px solid #E4DDD2',
-          borderRadius: '4px',
-          fontFamily: "'DM Mono', monospace",
-          fontSize: '14px',
-          backgroundColor: '#FAF7F2',
-          color: '#1a1a1a',
-          resize: 'vertical',
-          outline: 'none',
-          marginBottom: '16px',
+          width: '100%', padding: '12px 14px', background: '#0d0e12',
+          border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px',
+          color: '#f0f2f8', fontSize: '14px', resize: 'vertical', outline: 'none',
+          fontFamily: 'inherit', lineHeight: 1.6, marginBottom: '16px',
         }}
       />
       <button
         type="submit"
         style={{
-          padding: '12px 24px',
-          background: '#C8A95A',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '4px',
-          fontFamily: "'DM Mono', monospace",
-          fontSize: '13px',
-          fontWeight: 500,
-          cursor: 'pointer',
+          padding: '10px 24px', background: '#4b9eff', color: '#0d0e12',
+          border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600,
+          cursor: 'pointer', fontFamily: 'inherit',
         }}
       >
         Send revision notes
@@ -85,49 +63,17 @@ function ReviseForm() {
 
 export default function RevisePage() {
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#FAF7F2',
-        padding: '24px',
-      }}
-    >
+    <div className="bg-grid" style={{ minHeight: '100vh', backgroundColor: '#0a0b0f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ width: '100%', maxWidth: '520px' }}>
-        <p
-          style={{
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: '28px',
-            fontWeight: 600,
-            letterSpacing: '0.05em',
-            marginBottom: '40px',
-          }}
-        >
+        <p style={{ fontSize: '20px', fontWeight: 600, letterSpacing: '0.04em', marginBottom: '40px', color: '#f0f2f8' }}>
           Voyce
         </p>
-        <h1
-          style={{
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: '26px',
-            marginBottom: '8px',
-          }}
-        >
-          Request a revision
-        </h1>
-        <p style={{ color: '#888', fontSize: '13px', marginBottom: '28px' }}>
-          Tell us what needs to change. Revised draft arrives within 24 hours.
+        <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '6px' }}>Request a revision</h1>
+        <p style={{ color: '#9ba3b8', fontSize: '13px', marginBottom: '28px' }}>
+          Revised draft arrives within 24 hours.
         </p>
-        <div
-          style={{
-            background: '#fff',
-            border: '1px solid #E4DDD2',
-            borderRadius: '8px',
-            padding: '28px',
-          }}
-        >
-          <Suspense fallback={<p style={{ color: '#888', fontSize: '13px' }}>Loading…</p>}>
+        <div style={{ background: '#111318', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '28px' }}>
+          <Suspense fallback={<p style={{ color: '#5a6278', fontSize: '13px' }}>Loading…</p>}>
             <ReviseForm />
           </Suspense>
         </div>

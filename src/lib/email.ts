@@ -1,7 +1,13 @@
 import { Resend } from 'resend'
 import { generateApprovalToken } from './tokens'
 
-export const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend(): Resend {
+  const key = process.env.RESEND_API_KEY
+  if (!key || key === 'NEEDS_EXTERNAL_SETUP') {
+    throw new Error('RESEND_API_KEY not configured — add it to your environment variables')
+  }
+  return new Resend(key)
+}
 
 const FROM = process.env.EMAIL_FROM ?? 'Voyce <drafts@voyce.ai>'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
@@ -32,7 +38,7 @@ export async function sendDraftEmail({
   const reviseUrl = approvalUrl(contentItemId, 'revise')
   const holdUrl = approvalUrl(contentItemId, 'hold')
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to,
     replyTo: process.env.EMAIL_REPLY_TO,
@@ -66,7 +72,7 @@ export async function sendDiscoveryEmail({
     `${approvalUrl(contentItemId, 'approve')}&variant=${encodeURIComponent(label)}`
   const reviseUrl = approvalUrl(contentItemId, 'revise')
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to,
     replyTo: process.env.EMAIL_REPLY_TO,
@@ -78,7 +84,7 @@ export async function sendDiscoveryEmail({
 // ─── Welcome email ────────────────────────────────────────────────────────────
 
 export async function sendWelcomeEmail({ to, clientName }: { to: string; clientName: string }) {
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to,
     subject: `Welcome to Voyce — here's what happens next`,
@@ -104,7 +110,7 @@ export async function sendFollowUpEmail({
   const approveUrl = approvalUrl(contentItemId, 'approve')
   const reviseUrl = approvalUrl(contentItemId, 'revise')
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to,
     subject: `Quick reminder — your ${contentType} draft is still waiting`,
@@ -130,7 +136,7 @@ export async function sendHoldRecommendationEmail({
   const approveUrl = approvalUrl(contentItemId, 'approve')
   const holdUrl = approvalUrl(contentItemId, 'hold')
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to,
     subject: `We recommend holding your ${contentType} — here's why`,

@@ -4,8 +4,8 @@ import { auth } from '@/auth'
 import { getContent } from '@/lib/r2'
 import Link from 'next/link'
 
-function formatContentType(type: string): string {
-  return type.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+function formatType(type: string) {
+  return type.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 export default async function DraftDetailPage({
@@ -30,163 +30,116 @@ export default async function DraftDetailPage({
   const item = await prisma.contentItem.findUnique({
     where: { id, clientId: client.id },
     select: {
-      id: true,
-      contentType: true,
-      status: true,
-      storageKey: true,
-      contentPreview: true,
-      platformTarget: true,
-      holdReason: true,
-      confidenceScore: true,
-      createdAt: true,
-      deliveredAt: true,
-      approvedAt: true,
+      id: true, contentType: true, status: true, storageKey: true,
+      contentPreview: true, platformTarget: true, holdReason: true,
+      confidenceScore: true, createdAt: true, approvedAt: true,
     },
   })
-
   if (!item) notFound()
 
-  // Fetch full content from R2
   let fullContent = item.contentPreview ?? ''
   if (item.storageKey) {
-    try {
-      fullContent = await getContent(item.storageKey)
-    } catch {
-      // R2 not configured in dev — fall back to preview
-    }
+    try { fullContent = await getContent(item.storageKey) } catch { /* R2 not configured */ }
   }
 
   const isDiscovery = fullContent.includes('## Direct & Opinionated') ||
-    fullContent.includes('## Narrative & Story-driven') ||
-    fullContent.includes('## Educational & Structured')
+    fullContent.includes('## Narrative & Story-driven')
 
-  const canAct = item.status === 'DELIVERED' || item.status === 'HOLD_RECOMMENDED'
+  const canAct = item.status === 'DELIVERED' || item.status === 'HOLD_RECOMMENDED' || item.status === 'DRAFT'
 
   return (
-    <div style={{ maxWidth: '680px' }}>
+    <div style={{ maxWidth: '720px' }}>
+
       {/* Back */}
-      <Link
-        href="/drafts"
-        style={{ color: '#888', fontSize: '13px', textDecoration: 'none', display: 'block', marginBottom: '32px' }}
-      >
+      <Link href="/drafts" style={{ color: '#5a6278', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '32px', textDecoration: 'none' }}>
         ← Back to drafts
       </Link>
 
       {/* Banners */}
       {held === 'true' && (
-        <div style={{ background: '#F5F5F5', border: '1px solid #E0E0E0', borderRadius: '4px', padding: '12px 16px', marginBottom: '20px', fontSize: '13px', color: '#616161' }}>
-          This draft is on hold. You can still approve it at any time from this page.
+        <div style={{ background: 'rgba(107,114,128,0.1)', border: '1px solid rgba(107,114,128,0.2)', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '13px', color: '#9ba3b8' }}>
+          This draft is on hold. You can still approve it from here.
         </div>
       )}
       {already_actioned === 'true' && (
-        <div style={{ background: '#E8F5E9', border: '1px solid #C8E6C9', borderRadius: '4px', padding: '12px 16px', marginBottom: '20px', fontSize: '13px', color: '#2E7D32' }}>
-          This draft has already been actioned.
+        <div style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '13px', color: '#34d399' }}>
+          ✓ This draft has already been actioned.
         </div>
       )}
       {item.status === 'HOLD_RECOMMENDED' && item.holdReason && (
-        <div style={{ background: '#FBE9E7', border: '1px solid #FFCCBC', borderRadius: '6px', padding: '16px 20px', marginBottom: '24px' }}>
-          <p style={{ fontSize: '11px', color: '#C8A95A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
+        <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '8px', padding: '16px 20px', marginBottom: '24px' }}>
+          <p style={{ fontSize: '11px', color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>
             Voyce recommends holding this draft
           </p>
-          <p style={{ fontSize: '14px', color: '#BF360C' }}>{item.holdReason}</p>
+          <p style={{ fontSize: '13px', color: '#f0f2f8' }}>{item.holdReason}</p>
+        </div>
+      )}
+      {isDiscovery && (
+        <div style={{ background: 'rgba(75,158,255,0.08)', border: '1px solid rgba(75,158,255,0.2)', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '13px', color: '#4b9eff' }}>
+          Voice Discovery — choose the style closest to you. Your selection trains the system.
         </div>
       )}
 
       {/* Header */}
-      <div style={{ marginBottom: '32px' }}>
+      <div style={{ marginBottom: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-          <h1 style={{ fontSize: '30px', margin: 0 }}>
-            {formatContentType(item.contentType)}
-          </h1>
+          <h1 style={{ fontSize: '26px', fontWeight: 600 }}>{formatType(item.contentType)}</h1>
           {item.platformTarget && (
-            <span style={{ fontSize: '12px', color: '#888', background: '#F0EBE3', padding: '3px 10px', borderRadius: '3px' }}>
+            <span style={{ fontSize: '12px', color: '#4b9eff', background: 'rgba(75,158,255,0.1)', padding: '3px 10px', borderRadius: '4px' }}>
               {item.platformTarget}
             </span>
           )}
         </div>
-        <p style={{ color: '#888', fontSize: '12px' }}>
-          Created {new Date(item.createdAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          {item.confidenceScore && ` · Confidence ${Math.round(item.confidenceScore)}%`}
+        <p style={{ color: '#5a6278', fontSize: '12px' }}>
+          {new Date(item.createdAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          {item.confidenceScore ? ` · Confidence ${Math.round(item.confidenceScore)}%` : ''}
         </p>
       </div>
 
-      {/* Draft content */}
+      {/* Content */}
       <div
         style={{
-          background: '#fff',
-          border: '1px solid #E4DDD2',
-          borderRadius: '6px',
+          background: '#111318',
+          border: '1px solid rgba(255,255,255,0.07)',
+          borderRadius: '10px',
           padding: '28px',
           marginBottom: '28px',
         }}
       >
-        {isDiscovery ? (
-          <div>
-            <p style={{ fontSize: '11px', color: '#C8A95A', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '20px' }}>
-              Voice Discovery — choose the closest style
-            </p>
-            <div style={{ whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: 1.8, color: '#1a1a1a' }}>
-              {fullContent}
-            </div>
-          </div>
-        ) : (
-          <div style={{ whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: 1.8, color: '#1a1a1a' }}>
-            {fullContent}
-          </div>
-        )}
+        <div style={{ whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: 1.85, color: '#e0e4f0' }}>
+          {fullContent}
+        </div>
       </div>
 
-      {/* Action buttons — only show for actionable statuses */}
+      {/* Actions */}
       {canAct && (
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <form action={`/api/approvals/${generateTokenUrl(item.id, 'approve')}`} method="GET">
-            <button
-              type="submit"
-              style={{
-                padding: '12px 24px',
-                background: '#C8A95A',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
-                fontFamily: "'DM Mono', monospace",
-                fontSize: '13px',
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              Approve & publish
-            </button>
-          </form>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <a
+            href={`/api/approvals/dashboard-approve-${item.id}`}
+            style={{
+              padding: '10px 22px', background: '#4b9eff', color: '#0d0e12', borderRadius: '6px',
+              fontSize: '13px', fontWeight: 600, textDecoration: 'none', display: 'inline-block',
+            }}
+          >
+            Approve & publish
+          </a>
           <a
             href={`/revise?id=${item.id}`}
             style={{
-              padding: '12px 24px',
-              background: '#fff',
-              color: '#1a1a1a',
-              border: '1px solid #1a1a1a',
-              borderRadius: '4px',
-              fontFamily: "'DM Mono', monospace",
-              fontSize: '13px',
-              fontWeight: 500,
-              textDecoration: 'none',
-              display: 'inline-block',
+              padding: '10px 22px', background: 'transparent', color: '#f0f2f8',
+              border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px',
+              fontSize: '13px', textDecoration: 'none', display: 'inline-block',
             }}
           >
             Request revision
           </a>
           {item.status !== 'ON_HOLD' && (
             <a
-              href={`/api/approvals/${generateTokenUrl(item.id, 'hold')}`}
+              href={`/api/approvals/dashboard-hold-${item.id}`}
               style={{
-                padding: '12px 24px',
-                background: '#fff',
-                color: '#888',
-                border: '1px solid #E4DDD2',
-                borderRadius: '4px',
-                fontFamily: "'DM Mono', monospace",
-                fontSize: '13px',
-                textDecoration: 'none',
-                display: 'inline-block',
+                padding: '10px 22px', background: 'transparent', color: '#5a6278',
+                border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px',
+                fontSize: '13px', textDecoration: 'none', display: 'inline-block',
               }}
             >
               Hold for now
@@ -196,17 +149,13 @@ export default async function DraftDetailPage({
       )}
 
       {item.status === 'APPROVED' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#2E7D32', fontSize: '13px' }}>
-          <span>✓</span>
-          <span>Approved {item.approvedAt ? new Date(item.approvedAt).toLocaleDateString() : ''}</span>
-        </div>
+        <p style={{ color: '#34d399', fontSize: '13px' }}>
+          ✓ Approved {item.approvedAt ? new Date(item.approvedAt).toLocaleDateString() : ''}
+        </p>
+      )}
+      {item.status === 'PUBLISHED' && (
+        <p style={{ color: '#34d399', fontSize: '13px' }}>✓ Published</p>
       )}
     </div>
   )
-}
-
-// In the real app this would use the tokens library server-side.
-// For the dashboard we redirect to the API route which handles it.
-function generateTokenUrl(contentItemId: string, action: string): string {
-  return `${contentItemId}?action=${action}&source=dashboard`
 }

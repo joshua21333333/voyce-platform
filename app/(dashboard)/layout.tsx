@@ -1,54 +1,59 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import Link from 'next/link'
+import { VoyceNib } from '@/components/VoyceLogo'
+
+const navLinks = [
+  { href: '/drafts',      label: 'Drafts' },
+  { href: '/calendar',   label: 'Calendar' },
+  { href: '/performance', label: 'Performance' },
+  { href: '/settings',   label: 'Settings' },
+]
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
   if (!session) redirect('/login')
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#FAF7F2' }}>
-      {/* Nav */}
+    <div style={{ minHeight: '100vh', backgroundColor: '#0d0e12', color: '#f0f2f8' }}>
+
+      {/* Top nav */}
       <nav
         style={{
-          borderBottom: '1px solid #E4DDD2',
-          backgroundColor: '#FAF7F2',
-          padding: '0 32px',
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+          height: '52px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height: '56px',
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
+          padding: '0 24px',
+          backgroundColor: 'rgba(13,14,18,0.85)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
         }}
       >
+        {/* Left: logo + nav */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
-          <span
-            style={{
-              fontFamily: "'Cormorant Garamond', Georgia, serif",
-              fontSize: '20px',
-              fontWeight: 600,
-              letterSpacing: '0.05em',
-            }}
-          >
-            Voyce
-          </span>
-          <div style={{ display: 'flex', gap: '24px' }}>
-            {[
-              { href: '/drafts', label: 'Drafts' },
-              { href: '/calendar', label: 'Calendar' },
-              { href: '/performance', label: 'Performance' },
-              { href: '/settings', label: 'Settings' },
-            ].map((link) => (
+          <Link href="/drafts" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+            <VoyceNib size={20} color="#4b9eff" />
+            <span style={{ fontSize: '16px', fontWeight: 600, letterSpacing: '0.04em', color: '#f0f2f8' }}>
+              Voyce
+            </span>
+          </Link>
+
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 style={{
-                  color: '#666',
-                  textDecoration: 'none',
+                  padding: '5px 12px',
+                  borderRadius: '6px',
                   fontSize: '13px',
-                  letterSpacing: '0.02em',
+                  color: '#9ba3b8',
+                  textDecoration: 'none',
+                  transition: 'color 0.15s, background 0.15s',
                 }}
               >
                 {link.label}
@@ -56,11 +61,36 @@ export default async function DashboardLayout({ children }: { children: React.Re
             ))}
           </div>
         </div>
-        <span style={{ color: '#888', fontSize: '12px' }}>{session.user?.email}</span>
+
+        {/* Right: email */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '12px', color: '#5a6278' }}>
+            {session.user?.email}
+          </span>
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              background: 'rgba(75,158,255,0.15)',
+              border: '1px solid rgba(75,158,255,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '11px',
+              color: '#4b9eff',
+              fontWeight: 600,
+            }}
+          >
+            {session.user?.email?.[0]?.toUpperCase() ?? 'V'}
+          </div>
+        </div>
       </nav>
 
-      {/* Page content */}
-      <main style={{ maxWidth: '960px', margin: '0 auto', padding: '40px 32px' }}>{children}</main>
+      {/* Page */}
+      <main style={{ maxWidth: '1040px', margin: '0 auto', padding: '40px 24px' }}>
+        {children}
+      </main>
     </div>
   )
 }

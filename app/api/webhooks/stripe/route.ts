@@ -3,7 +3,11 @@ import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
 import { CONTENT_ACTIONS_BY_PLAN } from '@/config/pricing'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '')
+function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY
+  if (!key || key === 'NEEDS_EXTERNAL_SETUP') throw new Error('STRIPE_SECRET_KEY not configured')
+  return new Stripe(key)
+}
 
 // Sprint 1B: handles checkout completion, subscription updates, cancellation, and payment events.
 // Content Actions metering (overage billing) is Sprint 3.
@@ -18,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET ?? '')
+    event = getStripe().webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET ?? '')
   } catch {
     return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 })
   }

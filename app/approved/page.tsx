@@ -1,64 +1,21 @@
 import Link from 'next/link'
+import { VoyceNib } from '@/components/VoyceLogo'
 
 export default function ApprovedPage() {
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#FAF7F2',
-        padding: '24px',
-        textAlign: 'center',
-      }}
-    >
-      <div style={{ maxWidth: '400px' }}>
-        <p
-          style={{
-            fontFamily: "'Cormorant Garamond', Georgia, serif",
-            fontSize: '28px',
-            fontWeight: 600,
-            letterSpacing: '0.05em',
-            marginBottom: '32px',
-          }}
-        >
-          Voyce
-        </p>
-        <div
-          style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '50%',
-            background: '#E8F5E9',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 24px',
-            fontSize: '24px',
-          }}
-        >
+    <div className="bg-grid" style={{ minHeight: '100vh', backgroundColor: '#0a0b0f', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
+      <div style={{ maxWidth: '380px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '28px' }}>
+          <VoyceNib size={28} color="#4b9eff" />
+        </div>
+        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', fontSize: '20px' }}>
           ✓
         </div>
-        <h1 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", fontSize: '26px', marginBottom: '12px' }}>
-          Approved
-        </h1>
-        <p style={{ color: '#666', fontSize: '14px', lineHeight: 1.7, marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '10px' }}>Approved</h1>
+        <p style={{ color: '#9ba3b8', fontSize: '14px', lineHeight: 1.7, marginBottom: '32px' }}>
           Your content has been approved and queued for publishing.
         </p>
-        <Link
-          href="/drafts"
-          style={{
-            display: 'inline-block',
-            padding: '12px 24px',
-            background: '#C8A95A',
-            color: '#fff',
-            borderRadius: '4px',
-            fontFamily: "'DM Mono', monospace",
-            fontSize: '13px',
-            textDecoration: 'none',
-          }}
-        >
+        <Link href="/drafts" style={{ display: 'inline-block', padding: '10px 24px', background: '#4b9eff', color: '#0d0e12', borderRadius: '6px', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
           Back to drafts
         </Link>
       </div>
