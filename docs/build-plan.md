@@ -398,3 +398,107 @@ Before writing any application code, the following decisions must be documented:
 
 *Voyce Build Plan — GStack Autoplan — 2026-06-08*  
 *Read alongside architecture-review.md. Both documents must be reviewed before Sprint 1 implementation begins.*
+
+---
+---
+
+# Second Pass — Sprint 1 Reconciliation & Remediation Plan
+
+> GStack Autoplan — YC Office Hours Format (re-run)  
+> Generated: 2026-06-16  
+> Status: Sprint 1A shipped, Sprint 1B ~70% built. Read the second-pass section of `architecture-review.md` first.
+
+## Where we actually are
+
+The plan above was written before code. Since then:
+
+- **Sprint 1A (throwaway prototype): shipped.** `scripts/prototype/sprint-1a.ts` exists and has produced output. **But the decision-gate artifact does not** — there is no documented approval-rate score authorizing the move to 1B. Capture it retroactively or re-run the gate.
+- **Sprint 1B: ~70% built.** The Tally→MCF→Content-Writer→email path runs end-to-end for a paying-status-bypassed client. Prompt caching, webhook signature verification, R2 storage, the dashboard, and a richer-than-planned two-layer eval + Discovery Mode all shipped.
+- **The remaining 30% is load-bearing.** Three P0s make the system either dishonest (publishes nothing despite promising to), insecure (forgeable approval/publish tokens), or non-viable (unpaid clients get drafts; SQLite in prod). The weekly loop does not run. The revision loop is a dead end. These are not polish — they are the difference between a demo and a product.
+
+The original Sprint 1B acceptance criteria that *look* met but are **not**, verified against code:
+
+| AC (build-plan §Sprint 1B) | Claimed | Reality |
+|---|---|---|
+| Duplicate Tally submission → exactly one client | ✅ | ⚠️ over-dedupes on email too (`tally-idempotency-weakened`) |
+| MCF build < 90s, **all sections populated** | ✅ | ❌ only `VOICE_PROFILE` synthesized; 4/5 sections pass through raw (`mcf-90s-overstated`) |
+| Approve button marks approved in DB + dashboard | ✅ | ⚠️ email path works; **dashboard button errors** (`dashboard-approve-broken`) |
+| Stripe checkout completes; failed payment does not activate | ✅ | ❌ **no checkout exists**; production not gated on `ACTIVE` (`no-stripe-checkout`) |
+| Token counts logged from day one | ✅ | ❌ hardcoded `0` on the content path (`token-counts-zero`) |
+
+## Sprint 1B-R — Remediation (do this before any external beta)
+
+This is a corrective sub-sprint. No new features. Every task closes a verified P0/P1 from the second-pass review and references its finding ID. Ordered by "what makes the system honest and safe first."
+
+### Block 1 — Make it real and safe (P0)
+
+1. **Postgres migration** (`sqlite-still-provider`). Provision Neon/Supabase. Flip `provider = "postgresql"`, generate an initial migration (there is no baseline today), restore the `pgvector` embedding column **or** explicitly descope semantic retrieval for Sprint 1 in writing. Re-run the `Promise.all` MCF upserts against Postgres and confirm no lost updates.  
+   *AC:* `prisma migrate deploy` runs clean against a hosted Postgres; `dev.db` is gone from the deploy path; a concurrent two-write test against `client_context` does not lose an update.
+
+2. **Payment gate** (`no-stripe-checkout-and-ungated-production`). Add `checkout.sessions.create` + a signup route. Move the first-production trigger out of `mcf-build` into the `checkout.session.completed` handler. Add a hard `client.status === 'ACTIVE'` guard at the top of `contentProductionTask`.  
+   *AC:* a Tally submission with no payment produces **zero** Claude calls and zero emails; only a completed checkout triggers the first production run.
+
+3. **Approval-token hardening** (`approval-tokens-never-persisted`, `approval-secret-fallback`). Wire the existing `ApprovalToken` table: persist on send with `expiresAt` (7d), set `consumedAt` and the content status **in one transaction**, reject expired/consumed tokens. Throw at startup if `AUTH_SECRET` is unset (remove the `'fallback-dev-secret'` literal).  
+   *AC:* a re-used approve link is rejected; an expired link is rejected; the app refuses to boot without `AUTH_SECRET`.
+
+4. **Secrets at rest** (`integration-secrets-plaintext`). Either encrypt per-client integration secrets (envelope encryption/KMS) or delete the false "encrypted at application layer" schema comments and document plaintext in the threat model. No silent lies in the schema.  
+   *AC:* the schema comment matches reality; if encryption is chosen, stored secrets are ciphertext.
+
+5. **Publish path or honest copy** (`publishing-missing`). Build the Buffer publish task (`APPROVED → Buffer → PUBLISHED | PUBLISH_FAILED`, with the `post_failed` webhook handler the first review demanded) **or** change all "queued for publishing / Approve and publish" UI and email copy to "manual publishing."  
+   *AC:* either an approved LinkedIn post reaches Buffer and the status reflects success/failure, or no surface claims auto-publishing.
+
+6. **Dashboard approve/hold** (`dashboard-approve-broken`). Fix the malformed token URLs so the in-app approve/hold path works like the email path.  
+   *AC:* approving from the dashboard transitions status without error.
+
+### Block 2 — Make the loop actually loop (P1)
+
+7. **Revision reproduction + cap** (`revision-no-reproduction`, `change-order-unenforced`). Wire `REVISION_REQUESTED` → a worker that re-runs the Content Writer with `Revision.feedbackText` injected. Enforce 2 included rounds; the 3rd converts to a change order.  
+   *AC:* clicking "Request revision" delivers a revised draft within the planned turnaround; a 3rd request is blocked/converted.
+
+8. **Register the scheduler** (`no-scheduler-registered`). Convert `weeklyProductionTask` to a `schedules.task()` that enumerates `ACTIVE` clients on their configured cadence; schedule the biweekly activity-update send.  
+   *AC:* a test client receives a second piece automatically on schedule without a manual trigger.
+
+9. **Honest metering** (`meter-leak`, `content-action-undefined`). Move the action decrement to the **delivery point** (`DELIVERED`/`HOLD_RECOMMENDED`) so Discovery and revision deliverables are metered uniformly. Codify "1 Content Action = 1 delivered item" in `pricing.ts`.  
+   *AC:* every run that reaches a client decrements exactly once; discovery and escalation no longer run free; the counter a client sees equals pieces delivered.
+
+10. **Real cost accounting + budget enforcement** (`token-counts-zero`, `call-budget-unenforced`). Accumulate `inputTokens`/`outputTokens` across every `callClaude` and persist on `AgentRun` with a call count. Enforce `MAX_CLAUDE_CALLS_PER_ACTION`; use `MAX_REVISION_CYCLES` or delete it.  
+    *AC:* `agent_runs` shows non-zero token counts; a run exceeding the call budget escalates instead of looping; the `$0.75/item` alarm can fire.
+
+11. **Rate-limit + parse resilience** (`no-rate-limit-throttling`, `json-parse-unguarded`). Add per-account queue concurrency caps and 429 backoff-with-jitter. Wrap the three `JSON.parse` calls; on malformed output, mark the `AgentRun` failed rather than retrying the whole task.  
+    *AC:* a simulated 50-client Monday burst degrades gracefully (queued, not error-stormed); a malformed Claude response does not double-charge.
+
+### Block 3 — Resolve drift before it compounds (P2, can trail Block 2)
+
+12. **Deterministic checks** (`deterministic-checks-as-llm-calls`): implement `PLATFORM_FORMAT` and `BOUNDARIES_CHECK` as pure functions run before any LLM call.
+13. **Confidence score source** (`confidence-self-eval-circular`): derive `confidenceScore` from the independent orchestrator eval, not the specialist self-eval. Fix the `AutononomyLevel` enum typo and the phantom `client.autonomyThreshold` field.
+14. **R2 immutability** (`storagekey-keyed-on-agentrun`): key content objects on the content item and write new objects on revision; never overwrite.
+15. **Stripe idempotency** (`stripe-system-clientid-hack`): replace the `clientId:'system'` `AgentRun` hack with a `ProcessedWebhookEvent` table keyed (unique) on the Stripe event ID.
+16. **Brand identity** (`dashboard-theme-contradicts-plan`): ratify the dark theme as canonical, update §Sprint 1B design line, re-skin emails to match.
+17. **Document the unplanned wins**: write Discovery Mode and the two-layer eval into this plan, and decide whether discovery approvals count toward the headline approval-rate metric (recommend: separate cohort).
+
+## Updated Pre-Build Checklist (now a remediation gate)
+
+| # | Item | 2026-06-08 | 2026-06-16 status |
+|---|---|---|---|
+| 1 | ICP defined | ☐ | ✅ **Profile B** (growth-stage/funded founder); Starter = 60-day calibration tier |
+| 2 | Starter pricing | ✅ | ✅ $99/$249/$499 — keep (margin verified ~87% on real call counts) |
+| 3 | Content Actions defined | ☐ | ✅ **1 action = 1 delivered item**; move decrement to delivery point (task 9) |
+| 4 | Orchestrator failure mode | ☐ | ⚠️ no Orchestrator entity exists — rewrite `orchestrator.md` to real topology + add client-facing error path |
+| 5 | Per-action token budget | ☐ | ❌ declared, unenforced — task 10 |
+| 6 | Approval workflow edge cases | ☐ | ❌ revision = dead end, no change-order cap — tasks 3, 7 |
+| 7 | Spiral interface | ☐ | ⚠️ inlined, no contract — extract `text→fingerprint` interface |
+| 8 | Postgres provisioned | ☐ | ❌ **still SQLite** — task 1 (P0) |
+| 9 | Trigger.dev configured | ☐ | ✅ configured and in use |
+| 10 | Tally form finalized (IDs locked) | ☐ | ❌ field map is 100% `REPLACE_WITH_*` placeholders — **blocks live onboarding** |
+| 11 | Sprint 1A approval rate documented | ☐ | ⚠️ prototype ran; **no documented score/gate** — capture it |
+
+## Re-sequenced forward plan
+
+- **Sprint 1B-R (Remediation):** Blocks 1–2 above. **Gate to external beta:** all P0s closed, the weekly loop runs, the revision loop produces a revised draft, payment gates production, and metering is honest. This replaces "ship Sprint 1B" — 1B is not done until 1B-R is.
+- **Sprint 2 (Agent Core):** unchanged in intent, but add: full 8-check eval **with the 4 deterministic checks** (task 12), multi-piece runs **with N-per-piece metering** (extends task 9), and the A/B context-loading experiment. Do not start until 1B-R acceptance passes in production with ≥3 paying beta clients.
+- **Sprints 3–5+:** as in the original plan. Note Autonomy Levels (Sprint 3) now depend on the fixed `confidenceScore` source (task 13) and AI-disclosure/liability governance for Level 3 auto-publish (`autonomous-publishing-liability-ungoverned`): require explicit signed autonomy opt-in separate from per-draft approval, a configurable AI-disclosure line on auto-published content, a Terms clause allocating liability with a veto window, and an immutable publish-authorization record.
+
+---
+
+*Voyce Build Plan — Second Pass — GStack Autoplan — 2026-06-16*  
+*Sprint 1B is not complete until Sprint 1B-R closes every P0/P1 above. Finding IDs reference the second-pass section of `architecture-review.md`.*

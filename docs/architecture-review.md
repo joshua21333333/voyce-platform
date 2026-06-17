@@ -325,3 +325,127 @@ Specific recommendation: build a zero-commitment voice audit before Sprint 1 shi
 
 *Voyce Architecture Review — GStack Autoplan — 2026-06-08*  
 *Pre-build document. Review against Sprint 1 timeline before implementation begins.*
+
+---
+---
+
+# Second Pass — Code Reconciliation Review
+
+> GStack Autoplan — YC Office Hours Format (re-run)  
+> Generated: 2026-06-16  
+> Status: Post-Sprint-1A/1B reconciliation — read the 2026-06-08 review above first
+
+## Why this section exists
+
+The review above was written **before any code existed**. Since then, Sprint 1A (throwaway prototype) shipped in full and Sprint 1B is roughly **70% built** (commits `717c800`, `e8d3b3e`, `98fd3dc`, `96f51e1`, `3eb59f2`). The original review's framing — "decide these things before you write code" — has been overtaken by events: several decisions were silently resolved *by the implementation*, some correctly and some by accident.
+
+This second pass was produced by a fan-out of independent reviewers across 8 dimensions, each reading the actual shipped code, with every P0/P1 finding adversarially verified against `file:line` evidence. It does **not** restate the first review. It reports three things the first review could not:
+
+1. **Where the shipped code drifted from the plan** (and where it quietly exceeded it).
+2. **Which architectural risks the first review named are still unmitigated in code** — and which it got wrong.
+3. **Concrete resolutions to the open pre-build decisions**, grounded in what the code already does.
+
+Every finding below carries a stable ID; the remediation tasks in `build-plan.md` reference these IDs.
+
+## What the shipped code got right (verified)
+
+Credit where due — these go beyond what the first review demanded:
+
+- **Prompt caching is correctly implemented.** `src/lib/claude.ts` marks the stable MCF block (`voice/audience/pillars/opinions`) `cache_control: ephemeral` and leaves dynamic sections uncached. This is the single highest-leverage cost control and it is real.
+- **Tally and Stripe webhook signature verification are implemented**, and Tally's check fails *closed* on a missing secret. Good.
+- **Discovery Mode** (`content-production.ts:42-80`) — a 3-variant cold-start path when a client lacks writing samples — is a thoughtful, unplanned answer to the first review's #1 adversarial challenge (thin onboarding data). It is also a double-edged sword (see `meter-leak`, `discovery-unmetered`).
+- **The agent topology consolidated to ~8 agents with a deterministic routing file**, as the first review recommended.
+- **The model is Sonnet 4.6, not Haiku** — which means the original COGS estimate was built on wrong inputs but landed on the right margin (see `cogs-recompute`).
+
+## P0 — Ship blockers (must fix before any real client)
+
+**`sqlite-still-provider` — The Postgres migration is a comment, not a migration.**  
+`prisma/schema.prisma:14` still declares `provider = "sqlite"`; there is no `prisma/migrations/` directory (only `db push`), `dev.db` is the live store, and the `pgvector`/embedding column was deleted for SQLite compatibility. The first review called this its #1 blocker and framed it as "a one-line change." It is no longer one line: there is no migration baseline to deploy, and the Layer-3 semantic-retrieval column the review specified must be reconstructed. **Provision Neon/Supabase, generate an initial migration, and verify the `Promise.all` context upserts behave under a real concurrent writer before onboarding anyone** — SQLite serializes writes and hides the race that Postgres will expose.
+
+**`no-stripe-checkout-and-ungated-production` — Unpaid clients receive drafts.**  
+There is **no `stripe.checkout.sessions.create` anywhere in the codebase.** The Tally webhook creates a `PENDING` client and immediately fires `mcfBuildTask`, which unconditionally triggers `contentProductionTask` (`mcf-build.ts:108`). `contentProductionTask` gates only on the action limit (`content-production.ts:310`) — it never checks `status === 'ACTIVE'`. A Tally submission with zero payment produces a synthesized draft and emails it. "Billing gates access" (build-plan §Sprint 1B) is currently false. **Add a checkout flow, move the first-production trigger into the `checkout.session.completed` handler, and add a hard `ACTIVE` guard at the top of `contentProductionTask`** (the deferred `weeklyProductionTask` already has this guard — the live path bypasses it).
+
+**`publishing-missing` — `APPROVED` is a terminal dead-end.**  
+Approving content sets `status = APPROVED` and stops. There is no Buffer/Beehiiv code in `src/`, no worker reads `APPROVED` items, and nothing ever sets `PUBLISHED` or `PUBLISH_FAILED` (those enum values are dead). Yet the approved page and emails say "queued for publishing" / "Approve and publish." **The product currently makes a promise it cannot keep.** Either build the publish task (Buffer is explicit Sprint-1 MVP scope) or change the UI/email copy to "manual publishing" so it does not lie.
+
+**`dashboard-approve-broken` — The dashboard Approve/Hold buttons always error.**  
+They are wired to malformed approval-token URLs. The email path works; the in-app path does not. A client who approves from the dashboard hits an error.
+
+**Security P0s** (see Security section below): `approval-token-no-scope-no-expiry-replay`, `approval-secret-fallback`, `integration-secrets-plaintext`.
+
+## P1 — Must fix before scaling past the first handful of clients
+
+**`approval-tokens-never-persisted` / `approval-secret-fallback` (Security P0).** The `ApprovalToken` table (with `expiresAt`, `consumedAt`) is **dead code** — zero `prisma.approvalToken` calls. Tokens are stateless HMAC blobs with **no expiry, no single-use, no tenant binding**, and the HMAC secret falls back to the literal `'fallback-dev-secret'` if `AUTH_SECRET` is unset (`tokens.ts:3`). A forwarded or re-opened email link is a **permanent, forgeable, replayable publish trigger**. The intended design is already in the schema — this is wiring, not redesign. Persist tokens with 7-day expiry + `consumedAt`, check both in the same transaction as the status change, and throw at startup if `AUTH_SECRET` is missing.
+
+**`integration-secrets-plaintext`.** Schema comments claim `beehiivApiKey` and per-client integration secrets are "encrypted at the application layer." **No encryption code exists** — they are stored in plaintext. Either encrypt at rest (envelope encryption / KMS) or delete the false comment and treat the column as plaintext in the threat model.
+
+**`no-scheduler-registered` — After the first draft, the pipeline is dormant.**  
+`weeklyProductionTask` exists but is a plain `task()`, never registered as a `schedules.task()`/cron. The biweekly activity-update form is fully mapped but never sent. The *only* production run that ever fires is the single hardcoded trigger at the end of `mcf-build`. The "weekly production on the client's cadence" core loop **does not run.** It looks built (the task exists) but is inert.
+
+**`revision-no-reproduction` + `change-order-unenforced` — The revision loop is a dead end.**  
+Requesting a revision sets `REVISION_REQUESTED` and stops. **No worker reads `Revision.feedbackText` to produce a new draft** — a client who clicks "Request revision" gets silence. Separately, the "2 rounds included, 3rd = change order" rule is unenforced; `revisionNumber` increments unbounded, so revisions are unlimited and free.
+
+**`meter-leak` (metering-leak-expensive-runs-free) — The costliest runs are billed at $0.**  
+`contentActionsUsed` increments by 1 **only on the production-mode success path** (`content-production.ts:431`). Discovery mode (`return` at :362), internal-eval escalation (`return` at :393), and client revisions all do 4–6 Claude calls and **never decrement**. These are precisely the highest-frequency, highest-cost early-client scenarios. A client churning through Discovery + escalations can run dozens of paid jobs on a $99 plan while their counter reads `0/50`.
+
+**`call-budget-and-tokens-unenforced` / `token-counts-hardcoded-zero` — The margin guardrails are fictional.**  
+`MAX_CLAUDE_CALLS_PER_ACTION = 10` is never imported. `MAX_REVISION_CYCLES = 3` is imported but unused (the loop hardcodes `while (cycles < 2)`). `callClaude` returns real token usage, but `content-production.ts:379` writes `tokenInputCount: 0, tokenOutputCount: 0`. The build plan's own `$0.75/item` cost alarm (build-plan §Token Cost Tracking) **cannot fire** because cost-per-item is never recorded. The Severity-4 cost-spiral mitigation the first review mandated is, in code, unimplemented.
+
+**`confidence-self-eval-circular` — Autonomy auto-approve would gate on the writer grading itself.**  
+`confidenceScore` is set from the production loop's *own* `runVerification` self-eval (same cached context as generation), not from the independent `runOrchestratorEval`. Autonomy Level 2 (the planned auto-approve gate) would trust the specialist's self-grade — circular by construction. Compounding bugs: `orchestrator.md` gates on `client.autonomyThreshold`, a **field that does not exist** in the schema; the enum is **misspelled `AutononomyLevel`** and that typo is baked into the live column type. (Note: Autonomy Levels are a Sprint-3 deferral, so non-implementation is by design — but the schema typo and phantom field are real bugs to fix now.)
+
+**`no-rate-limit-throttling` — Monday-morning retry storm is the default.**  
+No per-account queue concurrency cap. `maxAttempts: 2` with no 429-specific backoff means concurrent multi-client production hits Anthropic rate limits mid-eval-chain and retries the *entire task* (re-charging every prior call). The first review flagged rate limits as a pre-Sprint-2 item; it remains unaddressed and is now coupled to the unguarded-`JSON.parse` problem below.
+
+**`json-parse-unguarded`.** Three bare `JSON.parse` calls on Claude output (`content-production.ts:78,136,277`). A single malformed response throws → the whole Trigger task retries → every Claude call re-runs and double-charges. The "malformed-response circuit breaker" documented in `orchestrator.md:80` does not exist.
+
+## P2 — Should fix; documents real drift
+
+- **`deterministic-checks-as-llm-calls`** (over-engineering). `PLATFORM_FORMAT` (char/word/hashtag counts) and `BOUNDARIES_CHECK` (prohibited-phrase list — already literal strings in the MCF) are asked of the LLM. An LLM cannot reliably count to 280 or exhaustively match a banned list. These are the two checks with objective ground truth and the two most wasteful to spend a model call on. Make them pure functions that run *before* any LLM call and short-circuit on failure.
+- **`storagekey-keyed-on-agentrun`** (data layer). The R2 content key is derived from `agentRun.id` but labeled `contentItemId`, and content is overwritten in place on revision — breaking the immutability contract the first review specified (revisions should be new objects).
+- **`clientcontext-rmw-races`** (data layer). MCF-as-typed-rows is sound, but the "race is eliminated" claim is not borne out: the `EXAMPLES` row is mutated read-modify-write by the approvals route with no transaction/lock, and four writers (onboarding, Agent 07, biweekly form, approvals) contend on the same client's rows. Wrap mutations in interactive transactions with row locks or use the `version` column as an optimistic-concurrency token; model examples as child rows so appends are independent inserts.
+- **`two-layer-eval-not-in-plan`** (scope creep). Shipped eval is a two-layer 7-check internal loop + 3-check orchestrator pass — never in the plan, ~2–4 extra Claude calls per run, weaker traceability. Decide whether it's intentional and document it, or collapse to the planned 3-check until approval-rate data justifies the extra passes.
+- **`discovery-mode-unplanned`** (scope creep). Discovery Mode changes the headline metric: a "discovery approval" is the client picking a *style direction*, not approving a *voice-matched draft*. If discovery runs are counted in first-draft approval rate, the 40–70% hypothesis gate is measuring the wrong thing. Track discovery as a separate cohort.
+- **`dashboard-theme-contradicts-plan`** (contradiction). The plan mandates cream/gold/Cormorant/DM-Mono "from day one." Emails honor it; the **dashboard ships a dark `#0d0e12`/blue theme** matching `usevoyce.lovable.app`. Two contradictory brand identities. Pick one (recommend: ratify the dark theme as canonical, update the plan, re-skin emails).
+- **`tally-fieldmap-placeholders`** (risk). `config/tally-field-map.json` ships with **100% `REPLACE_WITH_*` placeholder IDs**. Until the real form is finalized and IDs locked, onboarding maps nothing → every client falls into Discovery Mode. The webhook handler is untestable against a live form today.
+- **`stripe-system-clientid-hack`** (drift). Stripe idempotency markers are written as fake `AgentRun` rows with `clientId: 'system'`, wrapped in `.catch(() => null)`. `AgentRun.clientId` is a required FK; under Postgres the insert throws, the catch swallows it, and **Stripe idempotency silently degrades to none** — enabling double-processing of `checkout.completed` and `payment_succeeded`. Use a dedicated `ProcessedWebhookEvent` table with a unique constraint on the Stripe event ID.
+- **`tally-idempotency-weakened`** (risk). Idempotency dedupes on `submissionId OR email`, so any *distinct* second submission from a returning/re-onboarding client is silently dropped. Key on `submissionId` alone; handle email collisions explicitly.
+
+## Corrections to the first review
+
+- **`cogs-recompute`** — The first review's `$6.30/mo` Claude figure assumed 8 calls × 4k context. The shipped happy path is **4 calls** (plan, execute, 1 verification, 1 orchestrator eval); worst case 6. Recomputed with real Sonnet-4.6 pricing and cache economics: **~$0.062/action happy, ~$0.093 worst, ~$3.71–$8/mo** depending on format. **The ~87% margin headline survives — but for different reasons than stated.** Do not re-price; do fix the misleading rationale in `pricing.ts` so future cost work targets real drivers (the metering leak, uncached examples in the verification message) rather than phantom 8-call loops.
+- **`moat-reframe`** — The first review names the MCF "the core moat." But the MCF is *exactly* what Claude Projects / ChatGPT memory / Gemini Gems replicate for free in 20 minutes, and Discovery Mode is a single copyable prompt. **The AI layer has ≈zero moat.** The non-replicable asset already in the codebase is the **closed-loop operational state machine**: approval tokens, `HOLD_RECOMMENDED` gating, 48h auto-cancel follow-up, action metering, the autonomy-graduation ledger (`consecutiveApprovals`), and async publish-failure handling. **Reposition messaging from "AI that writes like you" (a comparison Voyce loses) to "removes you from the production loop end-to-end."** Treat voice match as table stakes; make switching cost (owned calendar, approval history, publish integrations) the moat.
+- **`churn-driver-human-labor-tax`** — The first review mandates a 30–60 min human MCF interview for the first clients but never models that labor in unit economics. Fully-loaded, that onboarding cost can exceed 1–2 months of $99 revenue. Starter is coherent **only as a loss-leading paid trial that graduates to $249**, not as a steady-state self-serve product. Gate human-assisted onboarding behind Growth, or enforce the Starter→Growth upgrade at the calibration milestone the autonomy ledger already tracks. Track approval-rate-by-onboarding-type from beta one.
+- The first review's "trust barrier vs. prepay" framing was **refuted** on verification: the shipped flow does not yet gate on payment at all (`no-stripe-checkout`), so there is no live prepay-vs-trust contradiction to resolve — the real issue is the *absence* of a gate, not its placement. The zero-commitment voice-audit recommendation still stands as a go-to-market lever.
+
+## Resolved open decisions (the checklist was never finished)
+
+The first review left 7 decisions "required before Sprint 1." Code shipped anyway. Here are the resolutions, grounded in what the code already does:
+
+1. **ICP → Profile B (growth-stage / funded founder with an existing content function).** Three shipped signals point here: the product only works with rich prior content (Discovery Mode fires otherwise), the $249 reference price assumes an agency-retainer alternative, and the trust-to-publish barrier is fatal for solo founders but tolerable for a managed-vendor relationship. Position Starter $99 as a **60-day calibration tier that auto-graduates to Growth**, with a beta cohort of founders with 12+ months of public writing.
+2. **Content Action = one delivered content item** (`DELIVERED` or `HOLD_RECOMMENDED`), independent of internal eval cycles or included revision rounds. In Sprint 1 every run yields one item, so this equals the code's current `increment: 1` — but **move the decrement to the delivery point** so Discovery and revision deliverables are metered uniformly, and it extends cleanly to N when multi-piece runs ship in Sprint 2. (This reconciles the two reviewers who split on "1 vs N per run": 1-per-run is correct *today*; per-delivered-item is the rule that stays correct.)
+3. **Orchestrator failure mode** — there is **no Orchestrator entity**; the pipeline is a linear Trigger.dev task chain (`mcf-build → content-production → email-delivery`) and the production `AgentRun` is tagged `CONTENT_WRITER`. This is a defensible architecture, but `orchestrator.md` describes a coordinator that does not exist. Either rewrite `orchestrator.md` to the real topology or build the entity. Add a client-facing error path for the `escalated` status (currently silent).
+4. **Per-action token budget** — treat as unimplemented. Wire a per-run call+token accumulator that escalates past `MAX_CLAUDE_CALLS_PER_ACTION`, use `MAX_REVISION_CYCLES` in the loop or delete it, and persist real token counts.
+5. **Approval workflow** — adopt the DB-backed `ApprovalToken` design already in the schema (single-use, 7-day expiry). Define what `REVISION_REQUESTED` triggers (a re-run worker — currently nothing). Decide repurpose-inherits-approval: **no** — repurposed children get their own eval and approval.
+6. **Spiral** — no swappable interface contract was created; voice matching is inlined into prompts. Acceptable as a stub, but extract the `text → fingerprint` interface so Spiral can drop in without touching the Content Writer.
+7. **Eval determinism** — 4 LLM checks (voice, audience, pillar, coherence) + 4 deterministic checks (platform format, boundaries, examples-presence, prohibited-phrases). Not 8 LLM calls.
+
+## Updated risk register (severity re-ranked against shipped code)
+
+| # | Risk | First review severity | Status in code (2026-06-16) |
+|---|---|---|---|
+| 1 | Unpaid clients get drafts; nothing publishes | (not foreseen) | **P0 open** — no checkout, no `ACTIVE` gate, no publish path |
+| 2 | Approval tokens forgeable/replayable; secrets plaintext | (not foreseen) | **P0 open** — security hole in the publish authorization path |
+| 3 | SQLite in production | Sev-3 (data races) | **P0 open** — still `provider="sqlite"`, no migrations |
+| 4 | Revision loop is a dead end | (not foreseen) | **P1 open** — `REVISION_REQUESTED` triggers nothing |
+| 5 | Metering leak — expensive runs free | (not foreseen) | **P1 open** — discovery/escalation/revision unmetered |
+| 6 | Cost guardrails fictional (tokens=0, budget unenforced) | Sev-4 (mitigation named) | **P1 open** — mitigation not built |
+| 7 | Weekly loop never runs (no scheduler) | (not foreseen) | **P1 open** — pipeline dormant after first draft |
+| 8 | Orchestrator SPOF | Sev-1 | **Partially mitigated** — no runtime LLM router; but no entity, no checkpointing, retries replay calls |
+| 9 | Voice mismatch / thin MCF | Sev-2 | **Partially mitigated** — Discovery Mode added; but only voice profile is synthesized, 4/5 sections pass through raw |
+| 10 | Rate-limit retry storms | (adversarial #2) | **P1 open** — no throttling, task-level retry re-charges |
+
+---
+
+*Voyce Architecture Review — Second Pass — GStack Autoplan — 2026-06-16*  
+*Generated by an 8-dimension adversarial workflow with per-finding verification against the shipped Sprint 1A/1B code. Finding IDs are referenced by the remediation plan in `build-plan.md`.*
