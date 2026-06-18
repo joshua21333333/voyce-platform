@@ -3,7 +3,7 @@ import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
 import { getStripe } from '@/lib/stripe'
 import { CONTENT_ACTIONS_BY_PLAN } from '@/config/pricing'
-import { contentProductionTask } from '@/trigger/content-production'
+import { mcfBuildTask } from '@/trigger/mcf-build'
 
 // Sprint 1B: handles checkout completion, subscription updates, cancellation, and
 // payment events. Content Actions overage billing is Sprint 3.
@@ -52,22 +52,14 @@ export async function POST(req: NextRequest) {
           plan,
           contentActionsLimit: actionsLimit,
         },
-        select: { id: true, onboardingCompletedAt: true },
+        select: { id: true },
       }).catch(() => null)
 
-      // Trigger the FIRST production run now that payment is confirmed. Small delay
-      // lets the MCF build (fired by the Tally webhook) finish first; if it hasn't,
-      // the producer falls back to Discovery Mode on thin context.
+      // Payment confirmed → build the MCF from stored onboarding answers, which then
+      // chains into the first production run. Nothing runs (no Claude calls) before
+      // this point, so unpaid signups cost nothing.
       if (client) {
-        await contentProductionTask.trigger(
-          {
-            clientId: client.id,
-            brief: "Produce a LinkedIn post on one of the client's primary content pillars.",
-            contentType: 'LINKEDIN_POST',
-            platformTarget: 'linkedin',
-          },
-          { concurrencyKey: client.id, delay: '120s' },
-        )
+        await mcfBuildTask.trigger({ clientId: client.id }, { concurrencyKey: client.id })
       }
       break
     }

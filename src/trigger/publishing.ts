@@ -4,6 +4,7 @@ import { getContent } from '@/lib/r2'
 import { tryDecryptSecret } from '@/lib/crypto'
 import { createBufferUpdate, BufferError } from '@/lib/buffer'
 import { sendPublishFailedEmail } from '@/lib/email'
+import { alertOps } from '@/lib/alert'
 
 export interface PublishPayload {
   contentItemId: string
@@ -85,6 +86,7 @@ export const publishTask = task({
         where: { id: contentItemId },
         data: { status: 'PUBLISH_FAILED', publishError: message },
       })
+      await alertOps('publish failed', { contentItemId, message })
       await sendPublishFailedEmail({
         to: client.email,
         clientName: client.name,

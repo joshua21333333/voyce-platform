@@ -567,4 +567,29 @@ publish path.
 
 ---
 
+# Sprint 1C — Production Hardening (in progress)
+
+> Added 2026-06-18. Runs **before** Sprint 2. Goal: take the foundation from
+> "architecturally honest" to "a real founder can pay, onboard, and publish without a
+> human in the loop." Ordered by dependency.
+
+| # | Item | Status |
+|---|---|---|
+| 1 | **Postgres** — provision + migrate + verify concurrent writes | ⏳ external (runbook: `docs/postgres-migration.md`) |
+| 2 | **Native onboarding form** replaces Tally entirely (`/onboarding`, `/api/onboarding`); MCF build reads stored typed responses; Tally webhook/lib/config deleted; cost-correct flow (zero Claude calls before payment) | ✅ done |
+| 3 | **Buffer connect flow** (OAuth) + Settings UI — encrypted token + profile stored, so auto-publish can actually run | ✅ done |
+| 4 | **Test suite** (Vitest) — crypto, tokens, deterministic checks, JSON parsing, MCF assembly, and a real-DB approval-token single-use/expiry integration test (25 tests) | ✅ done |
+| 5 | **End-to-end smoke test** with live test-mode keys (pay → onboard → draft → approve → publish) | ⏳ needs live keys |
+| 6 | **Verify Stripe API-version + Buffer-API assumptions** against live accounts | ⏳ needs live accounts |
+| 7 | **Legal + observability** — privacy policy, ToS (with AI-disclosure + autonomous-publishing liability), ops alerting on failed/escalated/publish-failed runs | ✅ done |
+
+**Why native forms over Tally:** removes the `tally-fieldmap-placeholders` blocker
+entirely (typed fields → schema, no brittle field-ID mapping), drops a webhook and an
+external dependency, and lets onboarding own its UX and validation.
+
+**Sprint 2 starts** once items 1, 5, 6 are complete (Postgres live, end-to-end smoke
+test green against live test-mode keys).
+
+---
+
 *Voyce Build Plan — Third Pass — GStack Autoplan — 2026-06-18*

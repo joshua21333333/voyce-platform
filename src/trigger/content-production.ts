@@ -8,8 +8,9 @@ import {
   type CallTracker,
 } from '@/lib/claude'
 import { putContent, getContent, contentKey } from '@/lib/r2'
-import { hasAdequateExamples } from '@/lib/tally'
+import { hasAdequateExamples } from '@/lib/mcf-assembly'
 import { checkPlatformFormat, checkBoundaries, extractProhibitedPhrases } from '@/lib/checks'
+import { alertOps } from '@/lib/alert'
 import { emailDeliveryTask } from './email-delivery'
 import type { ContentType } from '@prisma/client'
 import { MAX_TOKENS_PER_CALL } from '@/config/pricing'
@@ -347,6 +348,11 @@ async function finalizeRun(
       completedAt: new Date(),
     },
   })
+
+  // Surface non-success outcomes to ops instead of burying them in logs.
+  if (status !== 'completed') {
+    await alertOps(`production run ${status}`, { agentRunId, error: extra.errorMessage })
+  }
 }
 
 // ─── Main task — fresh production ─────────────────────────────────────────────

@@ -122,9 +122,9 @@ enum AutonomyLevel {
 
 model Client {
   id               String         @id @default(cuid())
-  tallySubmissionId String?       @unique // idempotency key for Tally webhook
   email            String         @unique
   name             String
+  onboardingResponses String?     // raw native-onboarding answers (JSON), source of truth for MCF build
   companyName      String?
   status           ClientStatus   @default(PENDING)
   plan             SubscriptionPlan @default(STARTER)
