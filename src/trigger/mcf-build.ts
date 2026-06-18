@@ -13,7 +13,6 @@ import {
   type TallyWebhookPayload,
 } from '@/lib/tally'
 import { sendWelcomeEmail } from '@/lib/email'
-import { contentProductionTask } from './content-production'
 
 export interface McfBuildPayload {
   clientId: string
@@ -99,18 +98,12 @@ Be specific and concrete. Do not use vague descriptors like "authentic" or "enga
       select: { name: true, email: true },
     })
 
-    // Send welcome email
+    // Send welcome email. The FIRST production run is NOT triggered here — it fires
+    // from the Stripe `checkout.session.completed` handler once payment is confirmed,
+    // so an unpaid Tally submission never produces (or emails) any content.
     await sendWelcomeEmail({ to: client.email, clientName: client.name })
 
-    logger.info('MCF build complete — triggering first production run', { clientId })
-
-    // Trigger the first content production run
-    await contentProductionTask.trigger({
-      clientId,
-      brief: 'Produce a LinkedIn post on one of the client\'s primary content pillars.',
-      contentType: 'LINKEDIN_POST',
-      platformTarget: 'linkedin',
-    })
+    logger.info('MCF build complete — awaiting payment to trigger first production', { clientId })
 
     return { clientId, sectionsWritten: sectionUpserts.length }
   },

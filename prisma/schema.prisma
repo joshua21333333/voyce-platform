@@ -1,9 +1,18 @@
 // Voyce — Prisma Schema
 // ─────────────────────────────────────────────────────────────────────────────
-// PRODUCTION: set provider = "postgresql" and restore extensions block.
-// DEV SANDBOX: provider = "sqlite" with DATABASE_URL = "file:./dev.db"
-//              pgvector extension and embedding column removed for SQLite compat.
-//              Switch to Postgres (Supabase/Neon) before onboarding real clients.
+// PROVIDER STRATEGY (see docs/postgres-migration.md for the full cutover runbook)
+//   DEV SANDBOX: provider = "sqlite", DATABASE_URL = "file:./dev.db".
+//                The hosted preview has no Postgres; SQLite keeps it runnable.
+//   PRODUCTION:  set provider = "postgresql", point DATABASE_URL at Neon/Supabase,
+//                run `prisma migrate deploy`. pgvector/embedding (Layer-3 semantic
+//                retrieval) is EXPLICITLY DESCOPED for Sprint 1 — add it back when
+//                semantic example retrieval ships (Sprint 2+).
+//   The application code is provider-agnostic: every multi-row mutation that the
+//   first review flagged as a hidden race (client_context upserts, EXAMPLES append)
+//   now runs inside an interactive transaction with version-based optimistic
+//   concurrency, so the behaviour is identical whether SQLite serializes writes or
+//   Postgres runs them concurrently. Provisioning the hosted DB is the one step
+//   that requires credentials unavailable in the sandbox.
 // ─────────────────────────────────────────────────────────────────────────────
 
 generator client {
@@ -48,12 +57,14 @@ enum ContextSectionType {
 
 enum ContentStatus {
   DRAFT
-  DELIVERED           // emailed to client
+  DELIVERED              // emailed to client
   APPROVED
   REVISION_REQUESTED
   REVISING
-  HOLD_RECOMMENDED    // Orchestrator flagged — awaiting client decision
-  ON_HOLD             // client confirmed hold
+  CHANGE_ORDER_REQUIRED  // exceeded included revision rounds — needs paid change order
+  HOLD_RECOMMENDED       // Orchestrator flagged — awaiting client decision
+  ON_HOLD                // client confirmed hold
+  PUBLISHING             // handed to Buffer/Beehiiv, awaiting confirmation
   PUBLISH_FAILED
   PUBLISHED
 }
@@ -99,7 +110,7 @@ enum QualityCheckType {
   PLATFORM_FORMAT
 }
 
-enum AutononomyLevel {
+enum AutonomyLevel {
   LEVEL_1_MANUAL        // all drafts require explicit approval
   LEVEL_2_CONFIDENCE    // auto-approve if confidence score >= threshold
   LEVEL_3_AUTONOMOUS    // auto-publish — requires 10 consecutive approved drafts
@@ -117,7 +128,8 @@ model Client {
   companyName      String?
   status           ClientStatus   @default(PENDING)
   plan             SubscriptionPlan @default(STARTER)
-  autonomyLevel    AutononomyLevel  @default(LEVEL_1_MANUAL)
+  autonomyLevel    AutonomyLevel    @default(LEVEL_1_MANUAL)
+  autonomyThreshold Int           @default(90) // Level-2 auto-approve confidence gate (Sprint 3)
   consecutiveApprovals Int        @default(0) // tracks path to Level 3
 
   // Stripe
@@ -131,13 +143,16 @@ model Client {
   contentActionsUsed  Int         @default(0)
 
   // Integrations
-  bufferAccessToken   String?
-  bufferRefreshToken  String?
+  // Secret columns store AES-256-GCM ciphertext (see src/lib/crypto.ts).
+  // Written via encryptSecret(), read via decryptSecret(). Never store plaintext.
+  bufferAccessToken   String?     // encrypted (AES-256-GCM)
+  bufferRefreshToken  String?     // encrypted (AES-256-GCM)
   bufferTokenExpiresAt DateTime?
-  beehiivApiKey       String?     // encrypted at application layer
-  gaPropertyId        String?     // Google Analytics
-  notionAccessToken   String?
-  slackBotToken       String?
+  bufferProfileId     String?     // Buffer profile/channel id (not secret)
+  beehiivApiKey       String?     // encrypted (AES-256-GCM)
+  gaPropertyId        String?     // Google Analytics (not secret)
+  notionAccessToken   String?     // encrypted (AES-256-GCM)
+  slackBotToken       String?     // encrypted (AES-256-GCM)
 
   // Metadata
   onboardingCompletedAt DateTime?
@@ -185,6 +200,7 @@ model ContentItem {
   // Eval
   evalPassed           Boolean?
   confidenceScore      Float?       // aggregate of 8 quality check scores (0–100)
+  isDiscovery          Boolean      @default(false) // 3-variant calibration set, not a publishable draft
 
   // Short preview stored in DB so list views don't need R2 calls
   contentPreview       String?
@@ -192,10 +208,16 @@ model ContentItem {
   // Hold reason surfaced by Orchestrator coherence/boundaries checks
   holdReason           String?
 
+  // Metering — Content Action counted once, at delivery (meteredAt set when counted)
+  meteredAt            DateTime?
+  // Revision accounting — included rounds enforced against this counter
+  revisionRoundsUsed   Int          @default(0)
+
   // Publishing
   bufferJobId          String?
   beehiivPostId        String?
   publishedUrl         String?
+  publishError         String?
 
   // Timestamps
   deliveredAt          DateTime?
@@ -240,6 +262,7 @@ model AgentRun {
   contextVersion  Int?      // MCF version snapshot used
   tokenInputCount Int       @default(0)
   tokenOutputCount Int      @default(0)
+  claudeCallCount Int       @default(0) // enforced against MAX_CLAUDE_CALLS_PER_ACTION
   revisionCycles  Int       @default(0) // incremented on each eval fail → revise loop
   discoveryMode   Boolean   @default(false)
   errorMessage    String?
@@ -301,6 +324,17 @@ model PerformanceEvent {
 
   @@index([clientId, platform])
   @@index([clientId, recordedAt])
+}
+
+// Webhook idempotency ledger — replaces the old `AgentRun clientId:'system'` hack.
+// A unique constraint on (source, eventId) makes duplicate webhook delivery a no-op.
+model ProcessedWebhookEvent {
+  id        String   @id @default(cuid())
+  source    String   // "stripe" | "buffer" | "tally"
+  eventId   String   // provider event id
+  createdAt DateTime @default(now())
+
+  @@unique([source, eventId])
 }
 
 // ─────────────────────────────────────────

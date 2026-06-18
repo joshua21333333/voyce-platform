@@ -1,20 +1,32 @@
-import { createHmac, randomBytes } from 'crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
 
-const TOKEN_SECRET = process.env.AUTH_SECRET ?? 'fallback-dev-secret'
+// HMAC layer for approval links. This proves a token was minted by us; single-use,
+// expiry, and tenant binding are enforced by the persisted ApprovalToken row (see
+// src/lib/approvals.ts). There is no dev fallback secret — an unset AUTH_SECRET is a
+// hard error so we never issue forgeable tokens.
 
-export function generateApprovalToken(
-  contentItemId: string,
-  action: 'approve' | 'revise' | 'hold',
-): string {
+function tokenSecret(): string {
+  const secret = process.env.AUTH_SECRET
+  if (!secret) {
+    throw new Error('AUTH_SECRET is not set — refusing to mint or verify approval tokens')
+  }
+  return secret
+}
+
+export type ApprovalAction = 'approve' | 'revise' | 'hold'
+
+const ACTIONS: ApprovalAction[] = ['approve', 'revise', 'hold']
+
+export function generateApprovalToken(contentItemId: string, action: ApprovalAction): string {
   const random = randomBytes(16).toString('hex')
   const payload = `${contentItemId}:${action}:${random}`
-  const sig = createHmac('sha256', TOKEN_SECRET).update(payload).digest('hex')
+  const sig = createHmac('sha256', tokenSecret()).update(payload).digest('hex')
   return Buffer.from(`${payload}:${sig}`).toString('base64url')
 }
 
 export function verifyApprovalToken(token: string): {
   contentItemId: string
-  action: 'approve' | 'revise' | 'hold'
+  action: ApprovalAction
 } | null {
   try {
     const decoded = Buffer.from(token, 'base64url').toString('utf-8')
@@ -22,10 +34,12 @@ export function verifyApprovalToken(token: string): {
     if (parts.length !== 4) return null
     const [contentItemId, action, random, sig] = parts
     const payload = `${contentItemId}:${action}:${random}`
-    const expected = createHmac('sha256', TOKEN_SECRET).update(payload).digest('hex')
-    if (sig !== expected) return null
-    if (!['approve', 'revise', 'hold'].includes(action)) return null
-    return { contentItemId, action: action as 'approve' | 'revise' | 'hold' }
+    const expected = createHmac('sha256', tokenSecret()).update(payload).digest('hex')
+    const sigBuf = Buffer.from(sig, 'hex')
+    const expBuf = Buffer.from(expected, 'hex')
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) return null
+    if (!ACTIONS.includes(action as ApprovalAction)) return null
+    return { contentItemId, action: action as ApprovalAction }
   } catch {
     return null
   }

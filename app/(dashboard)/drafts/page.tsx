@@ -9,8 +9,10 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   APPROVED:           { label: 'Approved',          color: '#34d399', bg: 'rgba(52,211,153,0.08)',  dot: '#34d399' },
   REVISION_REQUESTED: { label: 'Revision requested',color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  dot: '#f59e0b' },
   REVISING:           { label: 'Revising',          color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  dot: '#f59e0b' },
+  CHANGE_ORDER_REQUIRED: { label: 'Change order',   color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  dot: '#f59e0b' },
   HOLD_RECOMMENDED:   { label: 'Hold recommended',  color: '#f87171', bg: 'rgba(248,113,113,0.08)', dot: '#f87171' },
   ON_HOLD:            { label: 'On hold',           color: '#6b7280', bg: 'rgba(107,114,128,0.08)', dot: '#6b7280' },
+  PUBLISHING:         { label: 'Publishing',        color: '#4b9eff', bg: 'rgba(75,158,255,0.08)',  dot: '#4b9eff' },
   PUBLISH_FAILED:     { label: 'Publish failed',    color: '#f87171', bg: 'rgba(248,113,113,0.08)', dot: '#f87171' },
   PUBLISHED:          { label: 'Published',         color: '#34d399', bg: 'rgba(52,211,153,0.08)',  dot: '#34d399' },
 }

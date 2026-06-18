@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
+import { getStripe } from '@/lib/stripe'
 import { CONTENT_ACTIONS_BY_PLAN } from '@/config/pricing'
+import { contentProductionTask } from '@/trigger/content-production'
 
-function getStripe(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY
-  if (!key || key === 'NEEDS_EXTERNAL_SETUP') throw new Error('STRIPE_SECRET_KEY not configured')
-  return new Stripe(key)
-}
-
-// Sprint 1B: handles checkout completion, subscription updates, cancellation, and payment events.
-// Content Actions metering (overage billing) is Sprint 3.
+// Sprint 1B: handles checkout completion, subscription updates, cancellation, and
+// payment events. Content Actions overage billing is Sprint 3.
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
@@ -27,37 +23,52 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 })
   }
 
-  // Idempotency: skip already-processed events
-  const eventId = event.id
-  const seen = await prisma.agentRun.findFirst({ where: { triggerJobId: `stripe-${eventId}` } })
-  if (seen) return NextResponse.json({ received: true, duplicate: true })
-
-  // Record that we're processing this event
-  await prisma.agentRun.create({
-    data: { clientId: 'system', agentType: 'ORCHESTRATOR', triggerJobId: `stripe-${eventId}`, status: 'completed', startedAt: new Date(), completedAt: new Date() },
-  }).catch(() => null) // non-blocking, best-effort idempotency marker
+  // Idempotency via a dedicated ledger with a unique (source, eventId) constraint.
+  // A duplicate delivery hits the constraint and is treated as already-processed —
+  // no more fake AgentRun rows with a non-existent clientId.
+  try {
+    await prisma.processedWebhookEvent.create({ data: { source: 'stripe', eventId: event.id } })
+  } catch {
+    return NextResponse.json({ received: true, duplicate: true })
+  }
 
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
       const customerId = String(session.customer)
-      const email = session.customer_details?.email?.toLowerCase()
+      const email = session.customer_details?.email?.toLowerCase() ?? session.customer_email?.toLowerCase()
 
       if (!email) break
 
       const plan = resolvePlan(session.metadata?.plan ?? 'STARTER')
       const actionsLimit = CONTENT_ACTIONS_BY_PLAN[plan] ?? 50
 
-      await prisma.client.update({
+      const client = await prisma.client.update({
         where: { email },
         data: {
           status: 'ACTIVE',
           stripeCustomerId: customerId,
           stripeSubscriptionId: String(session.subscription ?? ''),
-          plan: plan as any,
+          plan,
           contentActionsLimit: actionsLimit,
         },
-      })
+        select: { id: true, onboardingCompletedAt: true },
+      }).catch(() => null)
+
+      // Trigger the FIRST production run now that payment is confirmed. Small delay
+      // lets the MCF build (fired by the Tally webhook) finish first; if it hasn't,
+      // the producer falls back to Discovery Mode on thin context.
+      if (client) {
+        await contentProductionTask.trigger(
+          {
+            clientId: client.id,
+            brief: "Produce a LinkedIn post on one of the client's primary content pillars.",
+            contentType: 'LINKEDIN_POST',
+            platformTarget: 'linkedin',
+          },
+          { concurrencyKey: client.id, delay: '120s' },
+        )
+      }
       break
     }
 
@@ -70,7 +81,7 @@ export async function POST(req: NextRequest) {
       await prisma.client.updateMany({
         where: { stripeCustomerId: customerId },
         data: {
-          plan: plan as any,
+          plan,
           contentActionsLimit: actionsLimit,
           currentPeriodStart: new Date(sub.current_period_start * 1000),
           currentPeriodEnd: new Date(sub.current_period_end * 1000),
@@ -114,13 +125,15 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ received: true })
 }
 
-function resolvePlan(raw: string): keyof typeof CONTENT_ACTIONS_BY_PLAN {
+type PlanKey = 'STARTER' | 'GROWTH' | 'PRO' | 'ENTERPRISE'
+
+function resolvePlan(raw: string): PlanKey {
   const upper = raw.toUpperCase()
-  if (['STARTER', 'GROWTH', 'PRO', 'ENTERPRISE'].includes(upper)) return upper as any
+  if (upper === 'GROWTH' || upper === 'PRO' || upper === 'ENTERPRISE') return upper
   return 'STARTER'
 }
 
-function resolveStripePricePlan(sub: Stripe.Subscription): string {
+function resolveStripePricePlan(sub: Stripe.Subscription): PlanKey {
   const priceId = sub.items.data[0]?.price.id ?? ''
   if (priceId === process.env.STRIPE_PRO_PRICE_ID) return 'PRO'
   if (priceId === process.env.STRIPE_GROWTH_PRICE_ID) return 'GROWTH'
