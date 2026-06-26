@@ -111,18 +111,20 @@ export default async function DraftDetailPage({
         </div>
       </div>
 
-      {/* Actions */}
+      {/* Actions — authenticated POST routes scoped to the logged-in client */}
       {canAct && (
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <a
-            href={`/api/approvals/dashboard-approve-${item.id}`}
-            style={{
-              padding: '10px 22px', background: '#4b9eff', color: '#0d0e12', borderRadius: '6px',
-              fontSize: '13px', fontWeight: 600, textDecoration: 'none', display: 'inline-block',
-            }}
-          >
-            Approve & publish
-          </a>
+          <form action={`/api/content/${item.id}/approve`} method="post" style={{ display: 'inline' }}>
+            <button
+              type="submit"
+              style={{
+                padding: '10px 22px', background: '#4b9eff', color: '#0d0e12', borderRadius: '6px',
+                fontSize: '13px', fontWeight: 600, border: 'none', cursor: 'pointer', display: 'inline-block',
+              }}
+            >
+              Approve
+            </button>
+          </form>
           <a
             href={`/revise?id=${item.id}`}
             style={{
@@ -134,16 +136,18 @@ export default async function DraftDetailPage({
             Request revision
           </a>
           {item.status !== 'ON_HOLD' && (
-            <a
-              href={`/api/approvals/dashboard-hold-${item.id}`}
-              style={{
-                padding: '10px 22px', background: 'transparent', color: '#5a6278',
-                border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px',
-                fontSize: '13px', textDecoration: 'none', display: 'inline-block',
-              }}
-            >
-              Hold for now
-            </a>
+            <form action={`/api/content/${item.id}/hold`} method="post" style={{ display: 'inline' }}>
+              <button
+                type="submit"
+                style={{
+                  padding: '10px 22px', background: 'transparent', color: '#5a6278',
+                  border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px',
+                  fontSize: '13px', cursor: 'pointer', display: 'inline-block',
+                }}
+              >
+                Hold for now
+              </button>
+            </form>
           )}
         </div>
       )}

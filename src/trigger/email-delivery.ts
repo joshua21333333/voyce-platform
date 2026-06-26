@@ -6,8 +6,6 @@ import {
   sendHoldRecommendationEmail,
   sendFollowUpEmail,
 } from '@/lib/email'
-import { contentProductionTask } from './content-production'
-import type { ContentType } from '@prisma/client'
 
 export interface EmailDeliveryPayload {
   clientId: string
@@ -18,6 +16,22 @@ export interface EmailDeliveryPayload {
   preview?: string
   holdReason?: string
   variants?: Array<{ label: string; draft: string }>
+}
+
+// Meters exactly one Content Action per delivered item. The conditional updateMany
+// (meteredAt: null) makes this idempotent: re-delivery of a revised item, or a retried
+// delivery job, never double-charges. "1 Content Action = 1 delivered item."
+async function meterDelivery(clientId: string, contentItemId: string): Promise<void> {
+  const claimed = await prisma.contentItem.updateMany({
+    where: { id: contentItemId, meteredAt: null },
+    data: { meteredAt: new Date() },
+  })
+  if (claimed.count > 0) {
+    await prisma.client.update({
+      where: { id: clientId },
+      data: { contentActionsUsed: { increment: 1 } },
+    })
+  }
 }
 
 export const emailDeliveryTask = task({
@@ -36,13 +50,19 @@ export const emailDeliveryTask = task({
     if (mode === 'discovery') {
       await sendDiscoveryEmail({
         to: client.email,
+        clientId,
         clientName: client.name,
         contentItemId,
         variants: payload.variants ?? [],
       })
+      await prisma.contentItem.update({
+        where: { id: contentItemId },
+        data: { status: 'DELIVERED', deliveredAt: new Date() },
+      })
     } else if (mode === 'hold_recommended') {
       await sendHoldRecommendationEmail({
         to: client.email,
+        clientId,
         clientName: client.name,
         contentItemId,
         contentType: payload.contentType ?? 'draft',
@@ -55,10 +75,10 @@ export const emailDeliveryTask = task({
     } else {
       await sendDraftEmail({
         to: client.email,
+        clientId,
         clientName: client.name,
         contentItemId,
         contentType: payload.contentType ?? 'draft',
-        preview: payload.preview ?? '',
         fullDraftText: payload.draftText ?? '',
       })
       await prisma.contentItem.update({
@@ -67,9 +87,15 @@ export const emailDeliveryTask = task({
       })
     }
 
-    // Schedule 48-hour follow-up nudge (only for standard drafts awaiting approval)
-    if (mode === 'standard') {
-      await followUpTask.trigger({ clientId, contentItemId, contentType: payload.contentType ?? 'draft', preview: payload.preview ?? '' }, { delay: '48h' })
+    // Every delivered item (draft, discovery, or hold) counts as one Content Action.
+    await meterDelivery(clientId, contentItemId)
+
+    // Schedule 48-hour follow-up nudge for items awaiting a client decision.
+    if (mode === 'standard' || mode === 'discovery') {
+      await followUpTask.trigger(
+        { clientId, contentItemId, contentType: payload.contentType ?? 'draft', preview: payload.preview ?? '' },
+        { delay: '48h' },
+      )
     }
 
     return { delivered: true }
@@ -98,6 +124,7 @@ export const followUpTask = task({
 
     await sendFollowUpEmail({
       to: client.email,
+      clientId: payload.clientId,
       clientName: client.name,
       contentItemId: payload.contentItemId,
       contentType: payload.contentType,
@@ -105,24 +132,5 @@ export const followUpTask = task({
     })
 
     return { nudgeSent: true }
-  },
-})
-
-// Weekly production scheduler — runs per active client
-export const weeklyProductionTask = task({
-  id: 'weekly-production',
-  run: async (payload: { clientId: string; contentType: ContentType; brief: string; platformTarget: string }) => {
-    const client = await prisma.client.findUnique({
-      where: { id: payload.clientId },
-      select: { status: true },
-    })
-
-    if (client?.status !== 'ACTIVE') {
-      logger.info('Skipping production for non-active client', { clientId: payload.clientId })
-      return { skipped: true }
-    }
-
-    await contentProductionTask.trigger(payload)
-    return { triggered: true }
   },
 })

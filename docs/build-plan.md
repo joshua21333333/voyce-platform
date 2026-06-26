@@ -502,3 +502,94 @@ This is a corrective sub-sprint. No new features. Every task closes a verified P
 
 *Voyce Build Plan — Second Pass — GStack Autoplan — 2026-06-16*  
 *Sprint 1B is not complete until Sprint 1B-R closes every P0/P1 above. Finding IDs reference the second-pass section of `architecture-review.md`.*
+
+---
+
+# Third Pass — Sprint 1B-R Remediation (shipped)
+
+> Generated: 2026-06-18  
+> Status: **Sprint 1B-R Blocks 1–3 implemented in code.** One external-credential step
+> remains (provision hosted Postgres — see `docs/postgres-migration.md`). After that
+> step the Sprint-2 gate is met.
+
+## What changed
+
+Every P0/P1 from the second pass, plus the high-value P2s, is now closed in code. The
+system that "looked built but was inert" now actually runs the loop end-to-end:
+payment gates production, the weekly scheduler fires, the revision loop reproduces a
+draft, approvals are single-use and replay-proof, and approved content has a real
+publish path.
+
+### Block 1 — P0 (real & safe)
+
+| # | Finding | Resolution |
+|---|---|---|
+| 1 | `sqlite-still-provider` | RMW races fixed in code (transactions on MCF upserts + EXAMPLES append), `ProcessedWebhookEvent` table added, schema made Postgres-ready, **runbook** in `docs/postgres-migration.md`. Hosted-DB provisioning is the one remaining external step. |
+| 2 | `no-stripe-checkout-and-ungated-production` | `src/lib/stripe.ts` + `POST /api/checkout` create checkout; first production moved to `checkout.session.completed`; hard `status==='ACTIVE'` guard at the top of `contentProductionTask` and `revisionProductionTask`. Unpaid Tally submission → **0 Claude calls**. |
+| 3 | `approval-tokens-never-persisted` / `approval-secret-fallback` | `ApprovalToken` rows persisted with 7-day expiry; `consumeApprovalToken` atomically single-uses + tenant-binds; `AUTH_SECRET` fallback removed (hard error if unset). |
+| 4 | `integration-secrets-plaintext` | `src/lib/crypto.ts` AES-256-GCM envelope encryption; Buffer/Beehiiv/Notion/Slack columns documented + written/read encrypted; `ENCRYPTION_KEY` required. |
+| 5 | `publishing-missing` | `src/trigger/publishing.ts` (`APPROVED → PUBLISHING → PUBLISHED \| PUBLISH_FAILED`) + Buffer client + `POST /api/webhooks/buffer` post-failure handler. Honest copy when no channel is connected. |
+| 6 | `dashboard-approve-broken` | Malformed token URLs replaced with authenticated `POST /api/content/[id]/[action]` (form POST), scoped to the logged-in client. |
+
+### Block 2 — P1 (the loop actually loops)
+
+| # | Finding | Resolution |
+|---|---|---|
+| 7 | `revision-no-reproduction` / `change-order-unenforced` | `revisionProductionTask` re-runs the writer with `Revision.feedbackText`; `REVISION_ROUNDS_INCLUDED = 2`, 3rd request → `CHANGE_ORDER_REQUIRED`. |
+| 8 | `no-scheduler-registered` | `src/trigger/schedules.ts`: `weeklyProductionScheduler` (cron, enumerates ACTIVE clients) + `biweeklyActivityUpdate` email. |
+| 9 | `meter-leak` / `content-action-undefined` | Metering moved to the delivery point (`email-delivery`), idempotent via `meteredAt`; discovery + hold + redelivery metered uniformly. `1 Content Action = 1 delivered item` codified in `pricing.ts`. |
+| 10 | `token-counts-zero` / `call-budget-unenforced` | `createCallTracker` accumulates tokens + call count onto `AgentRun`; `MAX_CLAUDE_CALLS_PER_ACTION` enforced (escalates via `CallBudgetExceededError`). |
+| 11 | `no-rate-limit-throttling` / `json-parse-unguarded` | Per-account queue concurrency + SDK 429 backoff (`maxRetries`); all model JSON parsed via `safeParseJson` → run fails cleanly instead of full-task retry. |
+
+### Block 3 — P2 (drift)
+
+| # | Finding | Resolution |
+|---|---|---|
+| 12 | `deterministic-checks-as-llm-calls` | `src/lib/checks.ts` — platform-format + boundaries run as pure functions before any LLM call. |
+| 13 | `confidence-self-eval-circular` | `confidenceScore` now derived from `runOrchestratorEval`; enum typo `AutononomyLevel → AutonomyLevel` fixed; `autonomyThreshold` field added. |
+| 14 | `storagekey-keyed-on-agentrun` | Content keyed on `contentItemId` + version; revisions write new immutable objects (`v2`, `v3`, …). |
+| 15 | `stripe-system-clientid-hack` | Replaced by `ProcessedWebhookEvent` unique on `(source, eventId)`. |
+| 16 | `dashboard-theme-contradicts-plan` | Dark theme ratified as canonical (see review third pass); emails remain cream/gold for inbox legibility, by design. |
+| 17 | unplanned wins | Discovery Mode + two-layer eval documented (review third pass); discovery approvals tracked as a **separate cohort** for the approval-rate metric. |
+| — | `tally-idempotency-weakened` | Idempotency keyed on `submissionId` alone; email collisions handled explicitly (re-onboarding rebuilds the MCF on the existing record). |
+
+## Sprint-2 gate (status)
+
+- [x] All P0s closed in code (payment gate, tokens, secrets, publish path, dashboard approve).
+- [x] Weekly loop runs (registered scheduler).
+- [x] Revision loop produces a revised draft; change-order cap enforced.
+- [x] Metering honest (per delivered item, idempotent).
+- [x] Cost accounting real; call budget enforced.
+- [ ] **Hosted Postgres provisioned + concurrent-write verified** — external step, runbook ready.
+- [ ] Tally form finalized and field IDs locked (`tally-fieldmap-placeholders`) — needs the real form.
+
+**Once the two unchecked items are done, Sprint 2 (Agent Core) may begin.**
+
+---
+
+# Sprint 1C — Production Hardening (in progress)
+
+> Added 2026-06-18. Runs **before** Sprint 2. Goal: take the foundation from
+> "architecturally honest" to "a real founder can pay, onboard, and publish without a
+> human in the loop." Ordered by dependency.
+
+| # | Item | Status |
+|---|---|---|
+| 1 | **Postgres** — provision + migrate + verify concurrent writes | ⏳ external (runbook: `docs/postgres-migration.md`) |
+| 2 | **Native onboarding form** replaces Tally entirely (`/onboarding`, `/api/onboarding`); MCF build reads stored typed responses; Tally webhook/lib/config deleted; cost-correct flow (zero Claude calls before payment) | ✅ done |
+| 3 | **Buffer connect flow** (OAuth) + Settings UI — encrypted token + profile stored, so auto-publish can actually run | ✅ done |
+| 4 | **Test suite** (Vitest) — crypto, tokens, deterministic checks, JSON parsing, MCF assembly, and a real-DB approval-token single-use/expiry integration test (25 tests) | ✅ done |
+| 5 | **End-to-end smoke test** with live test-mode keys (pay → onboard → draft → approve → publish) | ⏳ needs live keys |
+| 6 | **Verify Stripe API-version + Buffer-API assumptions** against live accounts | ⏳ needs live accounts |
+| 7 | **Legal + observability** — privacy policy, ToS (with AI-disclosure + autonomous-publishing liability), ops alerting on failed/escalated/publish-failed runs | ✅ done |
+
+**Why native forms over Tally:** removes the `tally-fieldmap-placeholders` blocker
+entirely (typed fields → schema, no brittle field-ID mapping), drops a webhook and an
+external dependency, and lets onboarding own its UX and validation.
+
+**Sprint 2 starts** once items 1, 5, 6 are complete (Postgres live, end-to-end smoke
+test green against live test-mode keys).
+
+---
+
+*Voyce Build Plan — Third Pass — GStack Autoplan — 2026-06-18*

@@ -113,8 +113,18 @@ This is a scheduled Trigger.dev task, not an agent call. It reads directly from 
 The Orchestrator enforces the client's configured Autonomy Level before deciding whether to deliver or auto-approve:
 
 - **Level 1 (LEVEL_1_MANUAL):** Always deliver for approval. Never auto-approve.
-- **Level 2 (LEVEL_2_CONFIDENCE):** Auto-approve if all 8 quality checks pass AND `confidenceScore >= client.autonomyThreshold` (default 90%). Otherwise deliver for approval.
+- **Level 2 (LEVEL_2_CONFIDENCE):** Auto-approve if the orchestrator eval passes AND `confidenceScore >= client.autonomyThreshold` (default 90%). Otherwise deliver for approval.
 - **Level 3 (LEVEL_3_AUTONOMOUS):** Auto-publish without approval. **Only available after 10 consecutive approved drafts without revision, enforced at the DB layer.** Check `client.consecutiveApprovals >= 10` before allowing Level 3 to activate.
+
+> **Implementation note (Sprint 1B-R).** Autonomy Levels are a Sprint-3 feature; the
+> enum (`AutonomyLevel`) and `client.autonomyThreshold` (default 90) now exist in the
+> schema so Sprint 3 can build on real columns. `confidenceScore` is derived from the
+> **independent orchestrator eval** (`runOrchestratorEval`), never the specialist's own
+> self-eval — auto-approve must not gate on the writer grading itself. The eval is not
+> 8 LLM calls: platform-format and boundaries are deterministic pure functions
+> (`src/lib/checks.ts`) that run before any model call; voice and pillar are LLM checks.
+> There is no standalone Orchestrator service — the pipeline is a linear Trigger.dev
+> task chain (`mcf-build → content-production → email-delivery → publish`).
 
 ---
 

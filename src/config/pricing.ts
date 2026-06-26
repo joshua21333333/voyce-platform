@@ -90,6 +90,16 @@ export const CONTENT_ACTIONS_BY_PLAN: Record<string, number | null> = {
   ENTERPRISE: null,
 }
 
+// ─── Content Action — the billing unit ─────────────────────────────────────────
+// One Content Action = one DELIVERED content item (a draft, discovery set, or
+// hold-recommended draft that reached the client). It is metered once, at the
+// delivery point (see src/trigger/email-delivery.ts), independent of internal eval
+// cycles. Included revision rounds redeliver the same item and are NOT re-metered.
+export const CONTENT_ACTION_DEFINITION = '1 Content Action = 1 delivered content item'
+
+// Revision rounds included per delivered item before a paid change order is required.
+export const REVISION_ROUNDS_INCLUDED = 2
+
 // Maximum Claude API revision cycles before escalating to human review.
 // This is a cost and margin control — do not remove.
 export const MAX_REVISION_CYCLES = 3

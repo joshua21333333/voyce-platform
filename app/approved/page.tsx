@@ -13,7 +13,8 @@ export default function ApprovedPage() {
         </div>
         <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '10px' }}>Approved</h1>
         <p style={{ color: '#9ba3b8', fontSize: '14px', lineHeight: 1.7, marginBottom: '32px' }}>
-          Your content has been approved and queued for publishing.
+          Your content is approved. If you&apos;ve connected a publishing channel, Voyce
+          publishes it automatically — otherwise it&apos;s ready for you to publish.
         </p>
         <Link href="/drafts" style={{ display: 'inline-block', padding: '10px 24px', background: '#4b9eff', color: '#0d0e12', borderRadius: '6px', fontSize: '13px', fontWeight: 600, textDecoration: 'none' }}>
           Back to drafts

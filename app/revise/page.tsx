@@ -9,20 +9,28 @@ function ReviseForm() {
   const contentItemId = searchParams.get('id') ?? ''
   const [notes, setNotes] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [changeOrder, setChangeOrder] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    await fetch('/api/revisions', {
+    const res = await fetch('/api/revisions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contentItemId, notes }),
     })
+    const data = (await res.json().catch(() => ({}))) as { changeOrder?: boolean }
+    setChangeOrder(Boolean(data.changeOrder))
     setSubmitted(true)
-    setTimeout(() => router.push('/drafts'), 2500)
+    setTimeout(() => router.push('/drafts'), 3000)
   }
 
   if (submitted) {
-    return (
+    return changeOrder ? (
+      <p style={{ color: '#f59e0b', fontSize: '14px', textAlign: 'center', lineHeight: 1.7 }}>
+        This piece has used its included revision rounds. We&apos;ll follow up about a change
+        order for further edits.
+      </p>
+    ) : (
       <p style={{ color: '#34d399', fontSize: '14px', textAlign: 'center' }}>
         ✓ Revision request sent. Revised draft arrives within 24 hours.
       </p>

@@ -12,8 +12,11 @@ export const r2 = new S3Client({
 
 const BUCKET = process.env.R2_BUCKET_NAME ?? 'voyce-content'
 
-export function contentKey(clientId: string, contentItemId: string): string {
-  return `content/${clientId}/${contentItemId}.md`
+// Content objects are immutable and versioned. A revision writes a NEW object
+// (v2, v3, …) rather than overwriting v1, so prior versions remain retrievable and
+// the revision history is reconstructable from storage.
+export function contentKey(clientId: string, contentItemId: string, version = 1): string {
+  return `content/${clientId}/${contentItemId}/v${version}.md`
 }
 
 export async function putContent(key: string, body: string): Promise<void> {
