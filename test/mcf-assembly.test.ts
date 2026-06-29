@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { assembleOnboardingSections, hasAdequateExamples, type OnboardingResponses } from '@/lib/mcf-assembly'
+import { assembleOnboardingSections, hasAdequateExamples, readHumaniserSkill, type OnboardingResponses } from '@/lib/mcf-assembly'
 
 const base: OnboardingResponses = {
   name: 'Jane', email: 'jane@acme.com', companyName: 'Acme',
@@ -24,5 +24,22 @@ describe('MCF assembly from onboarding', () => {
   it('hasAdequateExamples reflects sample volume', () => {
     expect(hasAdequateExamples(assembleOnboardingSections(base).EXAMPLES)).toBe(true)
     expect(hasAdequateExamples(assembleOnboardingSections({ ...base, sample1: 'tiny' }).EXAMPLES)).toBe(false)
+  })
+})
+
+describe('humaniser skill reference', () => {
+  it('loads the committed v3 removal-list engine', () => {
+    const humaniser = readHumaniserSkill()
+    // The engine is committed at agents/humaniser/humaniser-skill.md, so it must load.
+    expect(humaniser).toContain('Humanizer')
+    expect(humaniser).toContain('Significance inflation') // a Part-1 pattern
+  })
+
+  it('does NOT inject the reference author studies (those are study-only)', () => {
+    const humaniser = readHumaniserSkill()
+    // Paul Graham / literary studies live under reference/ and must not be injected;
+    // only files in profiles/ are. Guards against accidental impersonation injection.
+    expect(humaniser).not.toContain('Reference study — Paul Graham')
+    expect(humaniser).not.toContain('literary narrative craft')
   })
 })

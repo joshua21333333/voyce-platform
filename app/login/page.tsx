@@ -11,7 +11,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>
 }) {
   const session = await auth()
-  if (session) redirect('/drafts')
+  if (session) redirect('/dashboard')
   const { error } = await searchParams
 
   return (
@@ -19,11 +19,23 @@ export default async function LoginPage({
       <div style={{ width: '100%', maxWidth: '400px' }}>
 
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'center', marginBottom: '48px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'center', marginBottom: '20px' }}>
           <VoyceLogoPng size={36} />
           <span style={{ fontSize: '22px', fontWeight: 600, letterSpacing: '0.04em', color: '#f0f2f8' }}>
             Voyce
           </span>
+        </div>
+
+        {/* Marketing site link */}
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <a
+            href="https://usevoyce.lovable.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: '13px', color: '#4b9eff', textDecoration: 'none' }}
+          >
+            Visit usevoyce.com →
+          </a>
         </div>
 
         {/* Card */}
@@ -55,7 +67,7 @@ export default async function LoginPage({
               'use server'
               await signIn(hasResend ? 'resend' : 'dev-bypass', {
                 ...Object.fromEntries(formData),
-                redirectTo: '/drafts',
+                redirectTo: '/dashboard',
               })
             }}
           >

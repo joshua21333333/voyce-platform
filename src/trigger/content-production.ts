@@ -8,7 +8,7 @@ import {
   type CallTracker,
 } from '@/lib/claude'
 import { putContent, getContent, contentKey } from '@/lib/r2'
-import { hasAdequateExamples } from '@/lib/mcf-assembly'
+import { hasAdequateExamples, readHumaniserSkill } from '@/lib/mcf-assembly'
 import { checkPlatformFormat, checkBoundaries, extractProhibitedPhrases } from '@/lib/checks'
 import { alertOps } from '@/lib/alert'
 import { emailDeliveryTask } from './email-delivery'
@@ -36,6 +36,34 @@ interface LoadedContext {
   qualityStandards: string
   prohibitedPhrases: string[]
   isDiscoveryMode: boolean
+  founderFeedback: string[] // unconsumed founder chat messages folded into this run
+  humaniser: string // global writing reference, injected into writer prompts only
+}
+
+// Writer-facing system prompt: brand context + the Humanizer skill. The Humanizer is a
+// specialist-level pass (it runs in the writer's loop before the Orchestrator eval), so
+// it is injected here but NOT into runVerification / runOrchestratorEval, which judge
+// the result and use ctx.stable alone.
+function buildWriterSystem(ctx: LoadedContext) {
+  const stable = ctx.humaniser ? `${ctx.stable}\n\n---\n\n${ctx.humaniser}` : ctx.stable
+  return buildCachedSystemPrompt(stable, ctx.dynamic || undefined)
+}
+
+// Reads any unconsumed founder chat messages and marks them consumed in the same step,
+// so the same feedback is folded into exactly one run. Returns the message bodies.
+async function consumeFounderMessages(clientId: string): Promise<string[]> {
+  const pending = await prisma.message.findMany({
+    where: { clientId, role: 'founder', consumedAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, body: true },
+  })
+  if (pending.length === 0) return []
+
+  await prisma.message.updateMany({
+    where: { id: { in: pending.map((m) => m.id) } },
+    data: { consumedAt: new Date() },
+  })
+  return pending.map((m) => m.body)
 }
 
 async function loadContext(clientId: string): Promise<LoadedContext> {
@@ -47,13 +75,30 @@ async function loadContext(clientId: string): Promise<LoadedContext> {
   const get = (type: string) => sections.find((s) => s.sectionType === type)?.content ?? ''
 
   const examples = get('EXAMPLES')
-  const stable = [get('VOICE_PROFILE'), get('AUDIENCE'), get('CONTENT_PILLARS'), get('BRAND_OPINIONS')].join('\n\n')
-  const dynamic = [get('RECENT_ACTIVITY'), get('PERFORMANCE_INSIGHTS')].filter(Boolean).join('\n\n')
+  const stable = [get('VOICE_PROFILE'), get('AUDIENCE'), get('CONTENT_PILLARS'), get('BRAND_OPINIONS')]
+    .filter(Boolean)
+    .join('\n\n')
+
+  // Global, repo-committed writing reference. Kept separate from `stable` so it reaches
+  // only the writer's prompts (via buildWriterSystem), not the eval prompts. No-ops to
+  // '' when absent.
+  const humaniser = readHumaniserSkill()
+
+  // Founder chat feedback is dynamic (not cached) and incorporated as the source of
+  // truth for this run, then marked consumed so it is never applied twice.
+  const founderFeedback = await consumeFounderMessages(clientId)
+  const founderFeedbackSection = founderFeedback.length
+    ? `## Founder Feedback (incorporate this directly)\n${founderFeedback.map((f) => `- ${f}`).join('\n')}`
+    : ''
+
+  const dynamic = [get('RECENT_ACTIVITY'), get('PERFORMANCE_INSIGHTS'), founderFeedbackSection]
+    .filter(Boolean)
+    .join('\n\n')
   const qualityStandards = get('QUALITY_STANDARDS')
   const prohibitedPhrases = extractProhibitedPhrases(stable)
   const isDiscoveryMode = !hasAdequateExamples(examples)
 
-  return { stable, dynamic, examples, qualityStandards, prohibitedPhrases, isDiscoveryMode }
+  return { stable, dynamic, examples, qualityStandards, prohibitedPhrases, isDiscoveryMode, founderFeedback, humaniser }
 }
 
 // ─── Discovery Mode — 3 style variants ───────────────────────────────────────
@@ -62,9 +107,9 @@ async function runDiscoveryMode(
   tracker: CallTracker,
   brief: string,
   platformTarget: string,
-  stableCtx: string,
+  ctx: LoadedContext,
 ): Promise<Array<{ label: string; draft: string }> | null> {
-  const system = buildCachedSystemPrompt(stableCtx)
+  const system = buildWriterSystem(ctx)
 
   const { text } = await tracker.call({
     system,
@@ -166,7 +211,7 @@ async function runProductionLoop(
   platformTarget: string,
   ctx: LoadedContext,
 ): Promise<{ draft: string; evalResult: InternalEvalResult | null; cycles: number }> {
-  const system = buildCachedSystemPrompt(ctx.stable, ctx.dynamic || undefined)
+  const system = buildWriterSystem(ctx)
 
   // Step 2 — Planning
   const { text: plan } = await tracker.call({
@@ -396,7 +441,7 @@ export const contentProductionTask = task({
         logger.info('Discovery Mode triggered — insufficient examples', { clientId })
         await prisma.agentRun.update({ where: { id: agentRun.id }, data: { discoveryMode: true } })
 
-        const variants = await runDiscoveryMode(tracker, brief, platformTarget, ctx.stable)
+        const variants = await runDiscoveryMode(tracker, brief, platformTarget, ctx)
         if (!variants) {
           await finalizeRun(agentRun.id, tracker, 'failed', { errorMessage: 'Discovery variants unparseable' })
           return { status: 'failed', reason: 'discovery_parse' }
@@ -473,6 +518,18 @@ export const contentProductionTask = task({
 
       await finalizeRun(agentRun.id, tracker, 'completed', { revisionCycles: cycles })
 
+      // Close the loop in the founder chat when this run incorporated their feedback.
+      if (ctx.founderFeedback.length > 0) {
+        const plural = ctx.founderFeedback.length > 1
+        await prisma.message.create({
+          data: {
+            clientId,
+            role: 'orchestrator',
+            body: `Got your ${plural ? 'notes' : 'note'} — I folded ${plural ? 'them' : 'it'} into a fresh ${platformTarget} draft. It's on your board for review.`,
+          },
+        })
+      }
+
       await emailDeliveryTask.trigger(
         {
           clientId,
@@ -539,7 +596,7 @@ export const revisionProductionTask = task({
     const tracker = createCallTracker()
 
     try {
-      const system = buildCachedSystemPrompt(ctx.stable, ctx.dynamic || undefined)
+      const system = buildWriterSystem(ctx)
       const { text: revised } = await tracker.call({
         system,
         messages: [

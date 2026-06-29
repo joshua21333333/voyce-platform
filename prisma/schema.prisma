@@ -166,6 +166,7 @@ model Client {
   agentRuns        AgentRun[]
   approvalTokens   ApprovalToken[]
   performanceEvents PerformanceEvent[]
+  messages         Message[]
 
   @@index([status])
   @@index([plan])
@@ -324,6 +325,25 @@ model PerformanceEvent {
 
   @@index([clientId, platform])
   @@index([clientId, recordedAt])
+}
+
+// Founder ↔ AI chat. Founders leave feedback the agents pick up on the next run; the
+// Orchestrator/Content Writer can reply back. `role` is a String (not an enum) to match
+// the convention used by ApprovalToken.action / AgentRun.status — values: "founder" |
+// "orchestrator". `consumedAt` is set when a founder message has been read into a
+// production run, so the same feedback is never applied twice.
+model Message {
+  id         String    @id @default(cuid())
+  clientId   String
+  role       String    // "founder" | "orchestrator"
+  body       String
+  consumedAt DateTime? // set when a founder message has been folded into a run
+  createdAt  DateTime  @default(now())
+
+  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+  @@index([clientId, role, consumedAt])
 }
 
 // Webhook idempotency ledger — replaces the old `AgentRun clientId:'system'` hack.
