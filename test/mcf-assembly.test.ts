@@ -28,11 +28,18 @@ describe('MCF assembly from onboarding', () => {
 })
 
 describe('humaniser skill reference', () => {
-  it('reads the committed humaniser reference with the curated style profiles', () => {
+  it('loads the committed v3 removal-list engine', () => {
     const humaniser = readHumaniserSkill()
-    // The file is committed in this repo (agents/humaniser-skill.md), so it must load.
-    expect(humaniser).toContain('Paul Graham')
-    expect(humaniser).toContain('Hailey Griffin')
-    expect(humaniser).toContain('Tamilore Oladipo')
+    // The engine is committed at agents/humaniser/humaniser-skill.md, so it must load.
+    expect(humaniser).toContain('Humanizer')
+    expect(humaniser).toContain('Significance inflation') // a Part-1 pattern
+  })
+
+  it('does NOT inject the reference author studies (those are study-only)', () => {
+    const humaniser = readHumaniserSkill()
+    // Paul Graham / literary studies live under reference/ and must not be injected;
+    // only files in profiles/ are. Guards against accidental impersonation injection.
+    expect(humaniser).not.toContain('Reference study — Paul Graham')
+    expect(humaniser).not.toContain('literary narrative craft')
   })
 })
