@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { VoyceLogoPng } from '@/components/VoyceLogo'
 
 const navLinks = [
+  { href: '/dashboard',   label: 'Dashboard' },
   { href: '/drafts',      label: 'Drafts' },
   { href: '/calendar',   label: 'Calendar' },
   { href: '/performance', label: 'Performance' },
@@ -35,7 +36,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       >
         {/* Left: logo + nav */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
-          <Link href="/drafts" style={{ display: 'flex', alignItems: 'center', gap: '9px', textDecoration: 'none' }}>
+          <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '9px', textDecoration: 'none' }}>
             <VoyceLogoPng size={26} />
             <span style={{ fontSize: '16px', fontWeight: 600, letterSpacing: '0.04em', color: '#f0f2f8' }}>
               Voyce
@@ -91,6 +92,31 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <main style={{ maxWidth: '1040px', margin: '0 auto', padding: '40px 24px' }}>
         {children}
       </main>
+
+      {/* Footer */}
+      <footer
+        style={{
+          maxWidth: '1040px',
+          margin: '0 auto',
+          padding: '24px',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '12px',
+          color: '#5a6278',
+        }}
+      >
+        <span>© Voyce — the autonomous content platform built on Claude.</span>
+        <a
+          href="https://usevoyce.lovable.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: '#9ba3b8', textDecoration: 'none' }}
+        >
+          Visit usevoyce.com →
+        </a>
+      </footer>
     </div>
   )
 }

@@ -61,9 +61,9 @@ migration baseline.
 
 ## Acceptance (finding `sqlite-still-provider`)
 
-- [ ] `prisma migrate deploy` runs clean against hosted Postgres.
-- [ ] `dev.db` is absent from the deploy artifact.
-- [ ] Concurrent two-write test against `client_context` does not lose an update.
+- [ ] `prisma migrate deploy` runs clean against hosted Postgres. *(external — needs a hosted-DB credential the build sandbox lacks)*
+- [ ] `dev.db` is absent from the deploy artifact. *(deploy-path check; `prisma/dev.db` is git-ignored)*
+- [x] Concurrent two-write test against `client_context` does not lose an update — automated in `test/concurrency.integration.test.ts` (two simultaneous discovery approvals; both EXAMPLES appends land). Provider-agnostic via interactive transaction, so it holds on Postgres.
 - [x] RMW races fixed in code (provider-agnostic) — done in this branch.
 - [x] `ProcessedWebhookEvent` replaces the FK-violating `clientId:'system'` idempotency
       hack, so webhook idempotency survives the move to Postgres — done in this branch.

@@ -3,6 +3,9 @@
 // brittle field-ID mapping. These functions turn typed responses into the markdown
 // section content stored per ClientContext row.
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 export type OnboardingPlan = 'STARTER' | 'GROWTH' | 'PRO'
 
 export interface OnboardingResponses {
@@ -127,6 +130,38 @@ export function assembleRecentActivity(r: ActivityResponses, now: string): strin
   ]
     .filter(Boolean)
     .join('\n')
+}
+
+// ─── Humaniser skill (global writing reference) ──────────────────────────────
+// A repo-committed reference that makes output read less like a language model. It is
+// the same for every client (unlike the per-client voice_profile), so it is read from
+// disk at assembly time rather than stored per-row. The file may not exist yet — this
+// no-ops gracefully (returns '') so the build never breaks before it is committed.
+
+// Candidate paths, in order. The user may drop the file as either name.
+const HUMANISER_PATHS = ['agents/humaniser-skill.md', 'agents/humaniser skill.md']
+
+// Cached after first read (including the not-found case) to avoid touching disk on
+// every production run. `undefined` = not yet attempted.
+let humaniserCache: string | undefined
+
+export function readHumaniserSkill(): string {
+  if (humaniserCache !== undefined) return humaniserCache
+  for (const rel of HUMANISER_PATHS) {
+    try {
+      // turbopackIgnore: the path is rooted at the project cwd at runtime — don't let
+      // the file tracer follow it and pull the whole project into the bundle.
+      const content = readFileSync(join(/* turbopackIgnore: true */ process.cwd(), rel), 'utf8').trim()
+      if (content) {
+        humaniserCache = content
+        return humaniserCache
+      }
+    } catch {
+      // Try the next candidate path.
+    }
+  }
+  humaniserCache = ''
+  return humaniserCache
 }
 
 // True if the EXAMPLES section has enough real writing for voice matching.

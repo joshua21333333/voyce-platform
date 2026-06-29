@@ -8,7 +8,7 @@ import {
   type CallTracker,
 } from '@/lib/claude'
 import { putContent, getContent, contentKey } from '@/lib/r2'
-import { hasAdequateExamples } from '@/lib/mcf-assembly'
+import { hasAdequateExamples, readHumaniserSkill } from '@/lib/mcf-assembly'
 import { checkPlatformFormat, checkBoundaries, extractProhibitedPhrases } from '@/lib/checks'
 import { alertOps } from '@/lib/alert'
 import { emailDeliveryTask } from './email-delivery'
@@ -36,6 +36,24 @@ interface LoadedContext {
   qualityStandards: string
   prohibitedPhrases: string[]
   isDiscoveryMode: boolean
+  founderFeedback: string[] // unconsumed founder chat messages folded into this run
+}
+
+// Reads any unconsumed founder chat messages and marks them consumed in the same step,
+// so the same feedback is folded into exactly one run. Returns the message bodies.
+async function consumeFounderMessages(clientId: string): Promise<string[]> {
+  const pending = await prisma.message.findMany({
+    where: { clientId, role: 'founder', consumedAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, body: true },
+  })
+  if (pending.length === 0) return []
+
+  await prisma.message.updateMany({
+    where: { id: { in: pending.map((m) => m.id) } },
+    data: { consumedAt: new Date() },
+  })
+  return pending.map((m) => m.body)
 }
 
 async function loadContext(clientId: string): Promise<LoadedContext> {
@@ -47,13 +65,33 @@ async function loadContext(clientId: string): Promise<LoadedContext> {
   const get = (type: string) => sections.find((s) => s.sectionType === type)?.content ?? ''
 
   const examples = get('EXAMPLES')
-  const stable = [get('VOICE_PROFILE'), get('AUDIENCE'), get('CONTENT_PILLARS'), get('BRAND_OPINIONS')].join('\n\n')
-  const dynamic = [get('RECENT_ACTIVITY'), get('PERFORMANCE_INSIGHTS')].filter(Boolean).join('\n\n')
+  // The humaniser is a global, repo-committed writing reference injected alongside the
+  // per-client voice_profile so the writer's output reads less like a model. It is part
+  // of the stable (cached) context and no-ops to '' when the file is not present.
+  const humaniser = readHumaniserSkill()
+  const stable = [
+    get('VOICE_PROFILE'),
+    humaniser ? `## Humaniser Reference\n\n${humaniser}` : '',
+    get('AUDIENCE'),
+    get('CONTENT_PILLARS'),
+    get('BRAND_OPINIONS'),
+  ].filter(Boolean).join('\n\n')
+
+  // Founder chat feedback is dynamic (not cached) and incorporated as the source of
+  // truth for this run, then marked consumed so it is never applied twice.
+  const founderFeedback = await consumeFounderMessages(clientId)
+  const founderFeedbackSection = founderFeedback.length
+    ? `## Founder Feedback (incorporate this directly)\n${founderFeedback.map((f) => `- ${f}`).join('\n')}`
+    : ''
+
+  const dynamic = [get('RECENT_ACTIVITY'), get('PERFORMANCE_INSIGHTS'), founderFeedbackSection]
+    .filter(Boolean)
+    .join('\n\n')
   const qualityStandards = get('QUALITY_STANDARDS')
   const prohibitedPhrases = extractProhibitedPhrases(stable)
   const isDiscoveryMode = !hasAdequateExamples(examples)
 
-  return { stable, dynamic, examples, qualityStandards, prohibitedPhrases, isDiscoveryMode }
+  return { stable, dynamic, examples, qualityStandards, prohibitedPhrases, isDiscoveryMode, founderFeedback }
 }
 
 // ─── Discovery Mode — 3 style variants ───────────────────────────────────────
@@ -472,6 +510,18 @@ export const contentProductionTask = task({
       await prisma.contentItem.update({ where: { id: item.id }, data: { storageKey } })
 
       await finalizeRun(agentRun.id, tracker, 'completed', { revisionCycles: cycles })
+
+      // Close the loop in the founder chat when this run incorporated their feedback.
+      if (ctx.founderFeedback.length > 0) {
+        const plural = ctx.founderFeedback.length > 1
+        await prisma.message.create({
+          data: {
+            clientId,
+            role: 'orchestrator',
+            body: `Got your ${plural ? 'notes' : 'note'} — I folded ${plural ? 'them' : 'it'} into a fresh ${platformTarget} draft. It's on your board for review.`,
+          },
+        })
+      }
 
       await emailDeliveryTask.trigger(
         {

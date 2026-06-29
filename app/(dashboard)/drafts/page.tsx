@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/auth'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { CONTENT_COLUMNS, columnForStatus, type ColumnKey } from '@/lib/content-columns'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   DRAFT:              { label: 'Draft',             color: '#9ba3b8', bg: 'rgba(155,163,184,0.08)', dot: '#5a6278' },
@@ -75,6 +76,10 @@ export default async function DraftsPage() {
 
   const pending = items.filter(i => i.status === 'DELIVERED' || i.status === 'HOLD_RECOMMENDED').length
 
+  // Bucket every item into one of the four board columns.
+  const byColumn: Record<ColumnKey, typeof items> = { ongoing: [], awaiting: [], done: [], waiting: [] }
+  for (const item of items) byColumn[columnForStatus(item.status)].push(item)
+
   return (
     <div>
       {/* Header */}
@@ -135,54 +140,89 @@ export default async function DraftsPage() {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          {items.map((item, i) => (
-            <Link
-              key={item.id}
-              href={`/drafts/${item.id}`}
-              style={{ display: 'block', textDecoration: 'none' }}
-            >
-              <div
-                style={{
-                  background: i === 0 ? '#111318' : 'transparent',
-                  border: `1px solid ${i === 0 ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)'}`,
-                  borderRadius: '8px',
-                  padding: '16px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '20px',
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '12px', color: '#4b9eff', fontWeight: 500 }}>
-                      {formatType(item.contentType)}
-                    </span>
-                    {item.platformTarget && (
-                      <span style={{ fontSize: '11px', color: '#5a6278' }}>· {item.platformTarget}</span>
-                    )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', alignItems: 'start' }}>
+          {CONTENT_COLUMNS.map((col) => {
+            const colItems = byColumn[col.key]
+            return (
+              <div key={col.key} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* Column header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: col.accent }} />
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#f0f2f8' }}>{col.label}</span>
                   </div>
-                  <p style={{ fontSize: '13px', color: '#9ba3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '560px' }}>
-                    {item.contentPreview ?? 'Draft queued…'}
-                  </p>
-                  {item.holdReason && (
-                    <p style={{ fontSize: '11px', color: '#f87171', marginTop: '6px' }}>
-                      Hold: {item.holdReason}
-                    </p>
-                  )}
+                  <span style={{ fontSize: '11px', color: '#5a6278' }}>{colItems.length}</span>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
-                  <StatusBadge status={item.status} />
-                  <span style={{ fontSize: '11px', color: '#5a6278' }}>
-                    {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </span>
-                </div>
+                {/* Cards */}
+                {colItems.length === 0 ? (
+                  <div
+                    style={{
+                      border: '1px dashed rgba(255,255,255,0.07)',
+                      borderRadius: '8px',
+                      padding: '20px 12px',
+                      fontSize: '11px',
+                      color: '#5a6278',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {col.hint}
+                  </div>
+                ) : (
+                  colItems.map((item) => (
+                    <Link
+                      key={item.id}
+                      href={`/drafts/${item.id}`}
+                      style={{ display: 'block', textDecoration: 'none' }}
+                    >
+                      <div
+                        style={{
+                          background: '#111318',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: '8px',
+                          padding: '14px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '12px', color: '#4b9eff', fontWeight: 500 }}>
+                            {formatType(item.contentType)}
+                          </span>
+                          {item.platformTarget && (
+                            <span style={{ fontSize: '11px', color: '#5a6278' }}>· {item.platformTarget}</span>
+                          )}
+                        </div>
+                        <p
+                          style={{
+                            fontSize: '12px',
+                            color: '#9ba3b8',
+                            lineHeight: 1.5,
+                            overflow: 'hidden',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: 'vertical',
+                          }}
+                        >
+                          {item.contentPreview ?? 'Draft queued…'}
+                        </p>
+                        {item.holdReason && (
+                          <p style={{ fontSize: '11px', color: '#f87171', marginTop: '6px' }}>
+                            Hold: {item.holdReason}
+                          </p>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', gap: '8px' }}>
+                          <StatusBadge status={item.status} />
+                          <span style={{ fontSize: '10px', color: '#5a6278', flexShrink: 0 }}>
+                            {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))
+                )}
               </div>
-            </Link>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

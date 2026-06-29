@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { assembleOnboardingSections, hasAdequateExamples, type OnboardingResponses } from '@/lib/mcf-assembly'
+import { assembleOnboardingSections, hasAdequateExamples, readHumaniserSkill, type OnboardingResponses } from '@/lib/mcf-assembly'
 
 const base: OnboardingResponses = {
   name: 'Jane', email: 'jane@acme.com', companyName: 'Acme',
@@ -24,5 +24,15 @@ describe('MCF assembly from onboarding', () => {
   it('hasAdequateExamples reflects sample volume', () => {
     expect(hasAdequateExamples(assembleOnboardingSections(base).EXAMPLES)).toBe(true)
     expect(hasAdequateExamples(assembleOnboardingSections({ ...base, sample1: 'tiny' }).EXAMPLES)).toBe(false)
+  })
+})
+
+describe('humaniser skill reference', () => {
+  it('reads the committed humaniser reference with the curated style profiles', () => {
+    const humaniser = readHumaniserSkill()
+    // The file is committed in this repo (agents/humaniser-skill.md), so it must load.
+    expect(humaniser).toContain('Paul Graham')
+    expect(humaniser).toContain('Hailey Griffin')
+    expect(humaniser).toContain('Tamilore Oladipo')
   })
 })

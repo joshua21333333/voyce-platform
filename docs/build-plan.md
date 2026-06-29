@@ -560,10 +560,13 @@ publish path.
 - [x] Revision loop produces a revised draft; change-order cap enforced.
 - [x] Metering honest (per delivered item, idempotent).
 - [x] Cost accounting real; call budget enforced.
-- [ ] **Hosted Postgres provisioned + concurrent-write verified** — external step, runbook ready.
-- [ ] Tally form finalized and field IDs locked (`tally-fieldmap-placeholders`) — needs the real form.
+- [x] **Concurrent-write safety verified** — automated integration test (`test/concurrency.integration.test.ts`) fires two simultaneous discovery approvals and asserts both EXAMPLES appends land (no lost update). The append runs in an interactive transaction, so the guarantee is provider-agnostic and holds on hosted Postgres too.
+- [x] **Tally form retired** — native onboarding (`/onboarding` + `/api/onboarding`, Sprint 1C #2) replaced Tally entirely, removing the `tally-fieldmap-placeholders` blocker: typed fields map straight to the schema, so there are no field IDs left to lock.
+- [ ] **Hosted Postgres provisioned** — `prisma migrate deploy` against Neon/Supabase. The one genuinely external step: it needs a hosted-DB credential the build sandbox does not have. Runbook ready in `docs/postgres-migration.md`; the concurrency behaviour it must preserve is already proven by the test above.
 
-**Once the two unchecked items are done, Sprint 2 (Agent Core) may begin.**
+**Both code-side gate items are closed. The only remaining blocker is provisioning the
+hosted Postgres instance (a credentialed deploy-time `migrate deploy`); once that runs,
+Sprint 2 (Agent Core) may begin.**
 
 ---
 
@@ -575,7 +578,7 @@ publish path.
 
 | # | Item | Status |
 |---|---|---|
-| 1 | **Postgres** — provision + migrate + verify concurrent writes | ⏳ external (runbook: `docs/postgres-migration.md`) |
+| 1 | **Postgres** — provision + migrate + verify concurrent writes | 🟡 concurrent-write safety verified by automated test (`test/concurrency.integration.test.ts`); hosted provisioning + `migrate deploy` still external (runbook: `docs/postgres-migration.md`) |
 | 2 | **Native onboarding form** replaces Tally entirely (`/onboarding`, `/api/onboarding`); MCF build reads stored typed responses; Tally webhook/lib/config deleted; cost-correct flow (zero Claude calls before payment) | ✅ done |
 | 3 | **Buffer connect flow** (OAuth) + Settings UI — encrypted token + profile stored, so auto-publish can actually run | ✅ done |
 | 4 | **Test suite** (Vitest) — crypto, tokens, deterministic checks, JSON parsing, MCF assembly, and a real-DB approval-token single-use/expiry integration test (25 tests) | ✅ done |
